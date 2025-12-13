@@ -8,5 +8,10 @@
     "dev:web": "npm run dev --workspace=@pflege/web",
     "dev:api": "npm run dev --workspace=@pflege/api",
     "build": "npm run build --workspaces"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.87.1",
+    "dotenv": "^17.2.3",
+    "glob": "^13.0.0"
   }
 }
