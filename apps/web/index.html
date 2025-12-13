@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TVöD Chat-Rechner</title>
+    <!-- Tailwind CSS is currently loaded via CDN. For production, consider using the npm package. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -19,19 +20,9 @@
           scrollbar-width: none;
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.3",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.3/",
-    "react/": "https://aistudiocdn.com/react@^19.2.3/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.33.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.560.0"
-  }
-}
-</script>
-</head>
+  </head>
   <body class="bg-slate-50 text-slate-900 h-screen overflow-hidden">
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

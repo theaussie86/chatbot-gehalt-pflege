@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Menu, RefreshCw, MessageSquare } from 'lucide-react';
+import { Send, RefreshCw, MessageSquare } from 'lucide-react';
 import { Message, Sender, SalaryResultData } from './types';
 import { sendMessageToGemini, initializeChat } from './services/gemini';
 import { MessageBubble } from './components/MessageBubble';
@@ -8,7 +8,14 @@ import { ProgressBar } from './components/ProgressBar';
 const INITIAL_MESSAGE_TEXT = "Hallo! Ich helfe dir dabei, dein TVöD-Gehalt zu berechnen. Das Formular kann kompliziert sein, aber wir gehen das Schritt für Schritt durch. \n\nMöchtest du ein Gehalt für den normalen TVöD (VKA/Bund) oder für den Pflegebereich (P-Tabelle) berechnen?";
 const INITIAL_OPTIONS = ["TVöD VKA (Kommunen)", "TVöD Bund", "Pflege (P-Tabelle)"];
 
-export default function App() {
+interface AppProps {
+    config?: {
+        apiKey?: string;
+        apiEndpoint?: string;
+    }
+}
+
+export default function App({ config }: AppProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'init-1',
@@ -33,12 +40,15 @@ export default function App() {
     scrollToBottom();
   }, [messages]);
 
-  // Initial focus
+  // Initial focus and config
   useEffect(() => {
-    // Start the chat session in background
-    initializeChat();
+    // Start the chat session with config
+    const apiKey = config?.apiKey || import.meta.env.VITE_GEMINI_API_KEY || ''; 
+    const apiEndpoint = config?.apiEndpoint || import.meta.env.VITE_API_ENDPOINT || 'http://localhost:3000/api/chat';
+
+    initializeChat({ apiKey, apiEndpoint });
     inputRef.current?.focus();
-  }, []);
+  }, [config]);
 
   const parseResponse = (text: string): { cleanText: string; newProgress: number | null; resultData: SalaryResultData | null, options: string[] | undefined } => {
     let cleanText = text;
@@ -140,7 +150,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 max-w-2xl mx-auto shadow-2xl overflow-hidden relative border-x border-slate-200">
+    <div className="flex flex-col h-full w-full bg-slate-50 overflow-hidden relative border-x border-slate-200">
       
       {/* Header */}
       <header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between sticky top-0 z-10">
