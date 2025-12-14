@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-export default function EmbedCodePage() {
+export default function EmbedPage() {
   const widgetUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/widget-files/widget.js`
   
   const embedCode = `<!-- Chatbot Widget Embed Code -->
