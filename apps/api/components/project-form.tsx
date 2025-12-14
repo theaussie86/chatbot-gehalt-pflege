@@ -7,7 +7,6 @@ import { useEffect, useState } from 'react';
 type Project = {
   id: string;
   name: string | null;
-  name: string | null;
   allowed_origins: string[] | null;
   gemini_api_key: string | null;
 };
