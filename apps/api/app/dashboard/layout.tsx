@@ -34,6 +34,9 @@ export default async function DashboardLayout({
           <Link href="/dashboard/test-widget" className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded dark:text-gray-300 dark:hover:bg-gray-700">
             Test Widget
           </Link>
+          <Link href="/dashboard/documents" className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded dark:text-gray-300 dark:hover:bg-gray-700">
+            Documents
+          </Link>
 
         </nav>
          <div className="absolute bottom-0 w-64 p-4 border-t dark:border-gray-700">

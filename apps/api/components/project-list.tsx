@@ -102,6 +102,12 @@ export default function ProjectList({ projects }: { projects: Project[] }) {
                     >
                       Edit
                     </button>
+                    <a
+                      href={`/dashboard/projects/${project.id}`}
+                       className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 mr-4"
+                    >
+                      Documents
+                    </a>
                     <button
                       onClick={() => handleDelete(project.id)}
                       className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"

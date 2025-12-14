@@ -132,11 +132,12 @@ export async function POST(request: Request) {
         // Only perform check if it's a real API key (not our internal env key) and Origin is present
         
         let customGeminiApiKey = null;
+        let fileContextMessages: Content[] = [];
 
         if (activeProjectId !== process.env.GEMINI_API_KEY && activeProjectId !== 'DEMO') {
              const { data: project, error: projectError } = await getSupabaseAdmin()
                 .from('projects')
-                .select('allowed_origins, gemini_api_key')
+                .select('id, user_id, allowed_origins, gemini_api_key')
                 .eq('public_key', activeProjectId)
                 .single();
 
@@ -161,6 +162,39 @@ export async function POST(request: Request) {
                     { status: 403 }
                 );
             }
+            if (origin && !allowedOrigins.includes(origin)) {
+                 return NextResponse.json(
+                    { error: `Origin '${origin}' not authorized for this Project ID` },
+                    { status: 403 }
+                );
+            }
+
+            // --- FETCH & INJECT DOCUMENTS ---
+            const { data: documents } = await getSupabaseAdmin()
+                .from('documents')
+                .select('mime_type, google_file_uri')
+                .or(`project_id.eq.${project.id},and(project_id.is.null,user_id.eq.${project.user_id})`);
+
+            if (documents && documents.length > 0) {
+                 const fileParts = documents.map(doc => ({
+                    fileData: {
+                        mimeType: doc.mime_type || 'application/pdf',
+                        fileUri: doc.google_file_uri
+                    }
+                }));
+
+                const contextInstruction: Content = {
+                    role: 'user',
+                    parts: [...fileParts, { text: "Nutze diese hochgeladenen Dokumente als primäre Wissensquelle für deine Antworten im folgenden Gespräch. Beziehe dich explizit darauf, wenn es zur Frage passt." }]
+                };
+                
+                const modelAck: Content = {
+                    role: 'model',
+                    parts: [{ text: "Verstanden. Ich habe Zugriff auf die Dokumente und werde sie für die Beantwortung deiner Fragen verwenden." }]
+                };
+                
+                fileContextMessages = [contextInstruction, modelAck];
+            }
         }
         
         // --- END SECURITY CHECKS ---
@@ -180,6 +214,11 @@ export async function POST(request: Request) {
         const genAIClient = new GoogleGenAI({ apiKey: finalGeminiApiKey });
 
         const chatHistory = mapHistoryToContent(history || []);
+        
+        if (fileContextMessages.length > 0) {
+            chatHistory.unshift(...fileContextMessages);
+        }
+
         
         const currentDate = new Date().toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' });
         const dynamicSystemInstruction = `${SYSTEM_INSTRUCTION}\n\nHeute ist der ${currentDate}.`;
