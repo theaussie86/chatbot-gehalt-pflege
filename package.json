@@ -8,7 +8,8 @@
     "dev:web": "npm run dev --workspace=@pflege/web",
     "dev:api": "npm run dev --workspace=@pflege/api",
     "build": "npm run build --workspaces",
-    "deploy:widget": "npm run build --workspace=@pflege/web && node scripts/upload-to-supabase.js"
+    "deploy:widget": "npm run build --workspace=@pflege/web && node scripts/upload-to-supabase.js",
+    "deploy:api": "vercel deploy --prod"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.87.1",

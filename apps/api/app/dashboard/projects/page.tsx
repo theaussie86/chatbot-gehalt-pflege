@@ -1,13 +1,13 @@
 
 import { getProjects } from '@/app/actions/projects';
-import TestWidgetView from '@/components/test-widget-view';
+import ProjectList from '@/components/project-list';
 
-export default async function TestWidgetPage() {
+export default async function ProjectsPage() {
   const projects = await getProjects();
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <TestWidgetView projects={projects} />
+      <ProjectList projects={projects} />
     </div>
   );
 }

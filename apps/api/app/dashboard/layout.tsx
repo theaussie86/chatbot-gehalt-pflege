@@ -28,12 +28,13 @@ export default async function DashboardLayout({
            <Link href="/dashboard" className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded dark:text-gray-300 dark:hover:bg-gray-700">
             Overview
           </Link>
+           <Link href="/dashboard/projects" className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded dark:text-gray-300 dark:hover:bg-gray-700">
+            Projects
+          </Link>
           <Link href="/dashboard/test-widget" className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded dark:text-gray-300 dark:hover:bg-gray-700">
             Test Widget
           </Link>
-           <Link href="/dashboard/embed-code" className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded dark:text-gray-300 dark:hover:bg-gray-700">
-            Get Embed Code
-          </Link>
+
         </nav>
          <div className="absolute bottom-0 w-64 p-4 border-t dark:border-gray-700">
             <div className="text-sm text-gray-500 dark:text-gray-400">
