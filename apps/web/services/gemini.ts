@@ -1,7 +1,7 @@
 import { Message, Sender } from "../types";
 
 interface ChatConfig {
-  apiKey: string;
+  projectId: string;
   apiEndpoint: string;
 }
 
@@ -28,7 +28,7 @@ export const sendMessageToGemini = async (
       body: JSON.stringify({
         message: userMessage,
         history: history, // Send full history including previous messages
-        apiKey: currentConfig.apiKey, // Pass the key securely (HTTPS assumed)
+        projectId: currentConfig.projectId, // Sent as projectId for clarity
       }),
     });
 

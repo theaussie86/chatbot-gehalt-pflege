@@ -1,5 +1,6 @@
 import { GoogleGenAI, Content } from "@google/genai";
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 const SYSTEM_INSTRUCTION = `
 Du bist ein freundlicher, geduldiger und hilfsbereiter Assistent für den TVöD Gehaltsrechner (Tarifvertrag für den öffentlichen Dienst).
@@ -46,34 +47,114 @@ function mapHistoryToContent(history: any[]): Content[] {
     }));
 }
 
+// Initialize Supabase Admin Client
+const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { message, history, apiKey } = body;
+        // Look for 'projectId' specifically. 
+        // Fallback to 'apiKey' only for backward compatibility during transition if needed, but per request we want clear separation.
+        const { message, history, projectId, apiKey } = body;
+        const origin = request.headers.get('origin');
+        const ip = request.headers.get('x-forwarded-for') || 'unknown';
 
-        let activeApiKey = apiKey;
+        // Prefer 'projectId', fallback to 'apiKey' (legacy)
+        let activeProjectId = projectId || apiKey;
         
         // Fallback to server-side env key if client key is missing or placeholder
-        if (!activeApiKey || activeApiKey === 'DEMO') {
-            activeApiKey = process.env.GEMINI_API_KEY;
+        if (!activeProjectId || activeProjectId === 'DEMO') {
+            activeProjectId = process.env.GEMINI_API_KEY;
         }
 
-        if (!activeApiKey) {
+        if (!activeProjectId) {
             return NextResponse.json(
-                { error: "API Key is required" },
+                { error: "Project ID is required" },
                 { status: 401 }
             );
         }
 
-        const genAI = new GoogleGenAI({ apiKey: activeApiKey });
-        
-        // Convert history
-        // Frontend sends: [{sender: 'user', text: '...'}, {sender: 'bot', text: '...'}]
-        // We assume 'history' does NOT contain the current 'message'
-        const chatHistory = mapHistoryToContent(history || []);
+        // --- SECURITY CHECKS ---
 
-        const chat = genAI.chats.create({
-            model: "gemini-2.0-flash", // Updated to a stable model or keeping the one from frontend? Frontend used preview. using flash for speed/cost.
+        // 1. Rate Limiting (Simple SQL Based)
+        // Check requests from this IP in the last minute
+        const { count: requestCount, error: rateLimitError } = await supabaseAdmin
+            .from('request_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('ip_address', ip)
+            .gt('created_at', new Date(Date.now() - 60000).toISOString()); // Last 60 seconds
+
+        if (requestCount !== null && requestCount > 20) {
+            return NextResponse.json(
+                { error: "Too many requests. Please try again later." },
+                { status: 429 }
+            );
+        }
+
+        // Log this request (async, don't await blocking)
+        supabaseAdmin.from('request_logs').insert({
+            ip_address: ip,
+            public_key: activeProjectId !== process.env.GEMINI_API_KEY ? activeProjectId : 'system_demo'
+        }).then();
+
+        // 2. Domain Whitelisting / Origin Check & Custom Key Fetching
+        // Only perform check if it's a real API key (not our internal env key) and Origin is present
+        
+        let customGeminiApiKey = null;
+
+        if (activeProjectId !== process.env.GEMINI_API_KEY && activeProjectId !== 'DEMO') {
+             const { data: project, error: projectError } = await supabaseAdmin
+                .from('projects')
+                .select('allowed_origins, gemini_api_key')
+                .eq('public_key', activeProjectId)
+                .single();
+
+            if (!project || projectError) {
+                // Key not found in DB
+                return NextResponse.json(
+                    { error: "Invalid Project ID" },
+                    { status: 403 }
+                );
+            }
+
+            const allowedOrigins = project.allowed_origins || [];
+            customGeminiApiKey = project.gemini_api_key;
+            
+            // Check if Origin is allowed
+            // Note: If allowedOrigins is empty, we block everything.
+            // If origin is null (e.g. server-to-server), we might strictly block unless handled.
+            // Here we strictly require origin match if origin is present.
+            if (origin && !allowedOrigins.includes(origin)) {
+                 return NextResponse.json(
+                    { error: `Origin '${origin}' not authorized for this Project ID` },
+                    { status: 403 }
+                );
+            }
+        }
+        
+        // --- END SECURITY CHECKS ---
+
+        // Determine which Gemini API Key to use:
+        // 1. Custom Project Key (if exists in DB)
+        // 2. System ENV Key (Fallback)
+        const finalGeminiApiKey = customGeminiApiKey || process.env.GEMINI_API_KEY;
+
+        if (!finalGeminiApiKey) {
+             return NextResponse.json(
+                { error: "Server Configuration Error: No Gemini API Key available." },
+                { status: 500 }
+            );
+        }
+
+        const genAIClient = new GoogleGenAI({ apiKey: finalGeminiApiKey });
+
+        const chatHistory = mapHistoryToContent(history || []);
+        
+        const chat = genAIClient.chats.create({
+            model: "gemini-2.0-flash",
             config: {
                 systemInstruction: SYSTEM_INSTRUCTION,
                 temperature: 0.7,
@@ -87,7 +168,13 @@ export async function POST(request: Request) {
 
         const text = result.text || "";
 
-        return NextResponse.json({ text });
+        // Return response with Dynamic CORS if needed, or rely on OPTIONS
+        // If we want detailed CORS per response:
+        const response = NextResponse.json({ text });
+        if (origin) {
+            response.headers.set('Access-Control-Allow-Origin', origin);
+        }
+        return response;
 
     } catch (error: any) {
         console.error("Gemini API Error:", error);
@@ -98,12 +185,17 @@ export async function POST(request: Request) {
     }
 }
 
-// Enable CORS
+// Enable CORS Preflight with Dynamic Origin
 export async function OPTIONS(request: Request) {
+    const origin = request.headers.get('origin');
+    // For OPTIONS, we typically just allow it, but we can reflect the origin.
+    // To be strict, we'd check DB here too, but we lack the API Key in body.
+    // So we just reflect the origin to allow the browser to proceed to POST.
+    
     return new NextResponse(null, {
         status: 204,
         headers: {
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": origin || "*",
             "Access-Control-Allow-Methods": "POST, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, x-gemini-api-key",
         },

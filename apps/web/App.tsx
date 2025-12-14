@@ -10,7 +10,7 @@ const INITIAL_OPTIONS = ["TVöD VKA (Kommunen)", "TVöD Bund", "Pflege (P-Tabell
 
 interface AppProps {
     config?: {
-        apiKey?: string;
+        projectId?: string;
         apiEndpoint?: string;
         theme?: {
             primaryColor?: string;
@@ -59,10 +59,12 @@ export default function App({ config }: AppProps) {
   // Initial focus and config
   useEffect(() => {
     // Start the chat session with config
-    const apiKey = config?.apiKey || import.meta.env.VITE_GEMINI_API_KEY || ''; 
+    // Note: We use 'projectId' (Public Key) here. 
+    // Secure 'Gemini API Key' is NEVER passed here.
+    const projectId = config?.projectId || import.meta.env.VITE_PROJECT_ID || ''; 
     const apiEndpoint = config?.apiEndpoint || import.meta.env.VITE_API_ENDPOINT || 'http://localhost:3000/api/chat';
 
-    initializeChat({ apiKey, apiEndpoint });
+    initializeChat({ projectId, apiEndpoint });
     inputRef.current?.focus();
   }, [config]);
 
@@ -163,6 +165,23 @@ export default function App({ config }: AppProps) {
     if(window.confirm("Möchtest du den Chat neu starten? Alle Eingaben gehen verloren.")) {
         window.location.reload();
     }
+  }
+
+  if (!config?.projectId) {
+      return (
+          <div className="flex flex-col h-full w-full bg-red-50 text-red-800 p-6 items-center justify-center text-center border-x border-red-200" style={{fontFamily: 'Inter, sans-serif'}}>
+              <div className="p-3 bg-red-100 rounded-full mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              </div>
+              <h2 className="text-lg font-bold mb-2">Konfigurationsfehler</h2>
+              <p className="text-sm">
+                  Es wurde keine <strong>Project ID</strong> übergeben. 
+              </p>
+              <p className="text-xs mt-4 text-red-600 font-mono bg-red-100 p-2 rounded">
+                  window.chatbot('init', &#123; projectId: 'YOUR_ID' &#125;)
+              </p>
+          </div>
+      );
   }
 
   return (

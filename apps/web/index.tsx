@@ -10,6 +10,9 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <App config={{
+        projectId: import.meta.env.VITE_PROJECT_ID || 'dev_mode_project', // Fallback for local dev
+        apiEndpoint: import.meta.env.VITE_API_ENDPOINT
+    }} />
   </React.StrictMode>
 );
