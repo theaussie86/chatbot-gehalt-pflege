@@ -53,9 +53,9 @@ let supabaseAdminInstance: SupabaseClient | null = null;
 function getSupabaseAdmin() {
     if (!supabaseAdminInstance) {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const key = process.env.SUPABASE_SERVICE_KEY;
         if (!url || !key) {
-            throw new Error("Supabase credentials (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) are missing.");
+            throw new Error("Supabase credentials (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_KEY) are missing.");
         }
         supabaseAdminInstance = createClient(url, key);
     }
