@@ -194,7 +194,7 @@ export default function App({ config }: AppProps) {
                 <MessageSquare size={20} />
             </div>
             <div>
-                <h1 className="font-bold text-slate-800 leading-tight">TVöD Rechner</h1>
+                <h1 className="font-bold text-slate-800 leading-tight">Pflege Gehalt Chatbot</h1>
                 <p className="text-xs text-slate-500">Dein Assistent für den öffentlichen Dienst</p>
             </div>
         </div>
