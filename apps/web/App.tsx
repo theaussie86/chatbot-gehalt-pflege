@@ -5,8 +5,9 @@ import { sendMessageToGemini, initializeChat } from './services/gemini';
 import { MessageBubble } from './components/MessageBubble';
 import { ProgressBar } from './components/ProgressBar';
 
-const INITIAL_MESSAGE_TEXT = "Hallo! Ich helfe dir dabei, dein TVöD-Gehalt zu berechnen. Das Formular kann kompliziert sein, aber wir gehen das Schritt für Schritt durch. \n\nMöchtest du ein Gehalt für den normalen TVöD (VKA/Bund) oder für den Pflegebereich (P-Tabelle) berechnen?";
-const INITIAL_OPTIONS = ["TVöD VKA (Kommunen)", "TVöD Bund", "Pflege (P-Tabelle)"];
+const INITIAL_MESSAGE_TEXT = "Hallo! Ich bin dein Assistent für den TVöD-Pflege Gehaltsrechner. Ich helfe dir, dein Gehalt im Pflegebereich zu schätzen. \n\nFür welches Jahr möchtest du eine Berechnung durchführen?";
+const currentYear = new Date().getFullYear();
+const INITIAL_OPTIONS = [currentYear.toString(), (currentYear + 1).toString()];
 
 interface AppProps {
     config?: {

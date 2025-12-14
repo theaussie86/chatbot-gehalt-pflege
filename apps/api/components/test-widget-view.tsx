@@ -11,7 +11,7 @@ declare global {
   }
 }
 
-const INITIAL_MESSAGE_TEXT = "Hallo! Ich helfe dir dabei, dein TVöD-Gehalt zu berechnen. Das Formular kann kompliziert sein, aber wir gehen das Schritt für Schritt durch. \n\nMöchtest du ein Gehalt für den normalen TVöD (VKA/Bund) oder für den Pflegebereich (P-Tabelle) berechnen?";
+const INITIAL_MESSAGE_TEXT = "Hallo! Ich bin dein Assistent für den TVöD-Pflege Gehaltsrechner. Ich helfe dir, dein Gehalt im Pflegebereich zu schätzen. \n\nFür welches Jahr möchtest du eine Berechnung durchführen?";
 
 export default function TestWidgetView({ projects }: { projects: Project[] }) {
   const [mode, setMode] = useState<'widget' | 'api'>('widget');
