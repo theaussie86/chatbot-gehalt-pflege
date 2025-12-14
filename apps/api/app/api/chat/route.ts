@@ -10,13 +10,14 @@ Viele Nutzer finden den offiziellen Rechner kompliziert. Deine Aufgabe ist es, d
 1. Frage nacheinander (nicht alle auf einmal!) die notwendigen Variablen ab.
 2. Erkläre Begriffe, falls nötig (z.B. was eine Entgeltgruppe oder Stufe ist).
 3. Berechne am Ende eine **Schätzung** des Gehalts basierend auf deinem Wissen über TVöD-Tabellen und deutsche Steuerregeln.
+4. **Datum & Zeit:** Nutze das am Ende dieser Anweisung angegebene heutige Datum ("Heute ist der ..."), um zeitbezogene Fragen (z.B. "dieses Jahr") korrekt einzuordnen. Biete standardmäßig das **aktuelle** und das **nächste** Jahr an. Frage nicht nach vergangenen Jahren, außer der Nutzer verlangt es explizit.
 
 **Notwendige Daten:**
 1. **Tarifart**: TVöD Bund, VKA (Kommunen), oder Pflege (P-Tabelle)?
-2. **Jahr**: Welches Tarifjahr (z.B. 2024, 2025)?
+2. **Jahr**: Welches Tarifjahr? (Nutze das heutige Datum, um die passenden Jahre vorzuschlagen, z.B. aktuelles und nächstes Jahr).
 3. **Entgeltgruppe**: (z.B. E13, P8)
 4. **Stufe**: (Erfahrungsstufe 1-6)
-5. **Arbeitszeit**: Vollzeit (39h/40h) oder Teilzeit (in % oder Stunden)?
+5. **Arbeitszeit**: Vollzeit (35h/40h) oder Teilzeit (in % oder Stunden)?
 6. **Steuerklasse**: (I bis VI)
 7. **Kinderfreibeträge**: (Anzahl, z.B. 0, 0.5, 1.0...)
 8. **Kirchensteuer**: Ja oder Nein?
@@ -27,7 +28,7 @@ Viele Nutzer finden den offiziellen Rechner kompliziert. Deine Aufgabe ist es, d
 2. **Optionen:** Wenn du eine Frage stellst, biete IMMER passende Antwortmöglichkeiten an. Füge dazu ein Tag im Format \`[OPTIONS: ["Option A", "Option B"]]\` am Ende hinzu. 
    Beispiele:
    - \`[OPTIONS: ["TVöD VKA", "TVöD Bund", "Pflege"]]\`
-   - \`[OPTIONS: ["2024", "2025"]]\`
+   - \`[OPTIONS: ["2025", "2026"]]\` (Ersetze dies durch die für das heutige Datum relevanten Jahre!)
    - \`[OPTIONS: ["Klasse I", "Klasse III", "Klasse IV", "Klasse V"]]\`
    - \`[OPTIONS: ["Ja", "Nein"]]\`
 3. **Ergebnis:** Wenn du alle Daten hast:
@@ -162,10 +163,13 @@ export async function POST(request: Request) {
 
         const chatHistory = mapHistoryToContent(history || []);
         
+        const currentDate = new Date().toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' });
+        const dynamicSystemInstruction = `${SYSTEM_INSTRUCTION}\n\nHeute ist der ${currentDate}.`;
+
         const chat = genAIClient.chats.create({
             model: "gemini-2.0-flash",
             config: {
-                systemInstruction: SYSTEM_INSTRUCTION,
+                systemInstruction: dynamicSystemInstruction,
                 temperature: 0.7,
             },
             history: chatHistory
