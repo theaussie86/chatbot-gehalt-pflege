@@ -17,7 +17,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onOptionS
         
         {/* Avatar */}
         <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-            isBot ? 'bg-blue-100 text-blue-600' : 'bg-slate-200 text-slate-600'
+            isBot ? 'bg-[var(--primary-light)] text-[var(--primary-color)]' : 'bg-slate-200 text-slate-600'
         }`}>
             {isBot ? <Bot size={18} /> : <User size={18} />}
         </div>
@@ -28,7 +28,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onOptionS
             className={`p-4 rounded-2xl shadow-sm text-sm md:text-base leading-relaxed whitespace-pre-wrap ${
                 isBot 
                 ? 'bg-white text-slate-800 rounded-tl-none border border-slate-100' 
-                : 'bg-blue-600 text-white rounded-tr-none'
+                : 'bg-[var(--primary-color)] text-white rounded-tr-none'
             }`}
             >
             {message.text}
@@ -46,7 +46,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onOptionS
                         <button
                             key={idx}
                             onClick={() => onOptionSelected && onOptionSelected(option)}
-                            className="px-4 py-2 bg-white border border-blue-200 text-blue-600 text-sm rounded-full hover:bg-blue-50 hover:border-blue-300 transition-colors shadow-sm active:scale-95"
+                            className="px-4 py-2 bg-white border border-[var(--primary-border)] text-[var(--primary-color)] text-sm rounded-full hover:bg-[var(--primary-light-hover)] hover:border-[var(--primary-color)] transition-colors shadow-sm active:scale-95"
                         >
                             {option}
                         </button>

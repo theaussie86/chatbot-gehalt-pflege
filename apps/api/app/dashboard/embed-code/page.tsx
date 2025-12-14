@@ -6,6 +6,7 @@ export default function EmbedCodePage() {
   const widgetUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/widget-files/widget.js`
   
   const [embedMode, setEmbedMode] = useState<'popup' | 'inline'>('popup')
+  const [primaryColor, setPrimaryColor] = useState('#2563eb')
   
   const embedCode = embedMode === 'popup' 
     ? `<!-- Chatbot Widget Embed Code (Popup Mode) -->
@@ -14,8 +15,9 @@ export default function EmbedCodePage() {
   window.addEventListener('load', function() {
     if (window.chatbot) {
       window.chatbot('init', {
-         // Optional: You can override default configuration here
-         // primaryColor: '#000000',
+         theme: {
+            primaryColor: '${primaryColor}',
+         },
       });
     }
   });
@@ -28,8 +30,9 @@ export default function EmbedCodePage() {
     if (window.chatbot) {
       window.chatbot('init', {
          target: '#chatbot-inline-container',
-         // Optional: You can override default configuration here
-         // primaryColor: '#000000',
+         theme: {
+            primaryColor: '${primaryColor}',
+         },
       });
     }
   });
@@ -52,27 +55,45 @@ export default function EmbedCodePage() {
           Copy and paste the code below into your website's HTML, before the closing <code>&lt;/body&gt;</code> tag.
         </p>
 
-        <div className="flex gap-4 mb-6">
-          <button
-            onClick={() => setEmbedMode('popup')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              embedMode === 'popup'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200'
-            }`}
-          >
-            Popup Widget
-          </button>
-          <button
-            onClick={() => setEmbedMode('inline')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              embedMode === 'inline'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200'
-            }`}
-          >
-            Inline Embed
-          </button>
+        <div className="flex flex-col gap-6 mb-6">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Display Mode</label>
+                <div className="flex gap-4">
+                <button
+                    onClick={() => setEmbedMode('popup')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    embedMode === 'popup'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200'
+                    }`}
+                >
+                    Popup Widget
+                </button>
+                <button
+                    onClick={() => setEmbedMode('inline')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    embedMode === 'inline'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200'
+                    }`}
+                >
+                    Inline Embed
+                </button>
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Primary Color</label>
+                <div className="flex items-center gap-3">
+                    <input 
+                        type="color" 
+                        value={primaryColor}
+                        onChange={(e) => setPrimaryColor(e.target.value)}
+                        className="h-10 w-20 p-1 rounded border border-gray-300 cursor-pointer"
+                    />
+                    <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{primaryColor}</span>
+                </div>
+            </div>
         </div>
         
         <div className="relative">

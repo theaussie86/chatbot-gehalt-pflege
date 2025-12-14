@@ -12,6 +12,9 @@ interface AppProps {
     config?: {
         apiKey?: string;
         apiEndpoint?: string;
+        theme?: {
+            primaryColor?: string;
+        };
     }
 }
 
@@ -30,6 +33,19 @@ export default function App({ config }: AppProps) {
   const [progress, setProgress] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Theme configuration
+  const primaryColor = config?.theme?.primaryColor || '#2563eb'; // Default blue-600
+  
+  const themeStyles = {
+    '--primary-color': primaryColor,
+    '--primary-hover': `color-mix(in srgb, ${primaryColor}, black 10%)`,
+    '--primary-light': `color-mix(in srgb, ${primaryColor}, white 90%)`, // bg-blue-100 equivalent
+    '--primary-light-hover': `color-mix(in srgb, ${primaryColor}, white 95%)`, // bg-blue-50 equivalent
+    '--primary-border': `color-mix(in srgb, ${primaryColor}, white 70%)`, // border-blue-200 equivalent
+    '--primary-ring': `color-mix(in srgb, ${primaryColor}, white 50%)`,
+    '--primary-text': primaryColor,
+  } as React.CSSProperties;
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -150,12 +166,12 @@ export default function App({ config }: AppProps) {
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-50 overflow-hidden relative border-x border-slate-200">
+    <div className="flex flex-col h-full w-full bg-slate-50 overflow-hidden relative border-x border-slate-200" style={themeStyles}>
       
       {/* Header */}
       <header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-lg text-white">
+            <div className="p-2 rounded-lg text-white bg-[var(--primary-color)]">
                 <MessageSquare size={20} />
             </div>
             <div>
@@ -195,8 +211,8 @@ export default function App({ config }: AppProps) {
         {isLoading && (
           <div className="flex justify-start mb-6">
              <div className="flex flex-row items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[var(--primary-light)]">
+                    <div className="w-2 h-2 rounded-full animate-bounce bg-[var(--primary-color)]" style={{ animationDelay: '0ms' }}></div>
                 </div>
                 <span className="text-xs text-slate-400 animate-pulse">Schreibt...</span>
              </div>
@@ -208,11 +224,11 @@ export default function App({ config }: AppProps) {
 
       {/* Input Area */}
       <footer className="bg-white p-4 border-t border-slate-200">
-        <div className="relative flex items-end gap-2 bg-slate-100 p-2 pr-2 rounded-3xl border border-transparent focus-within:border-blue-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100 transition-all">
+        <div className="relative flex items-end gap-2 bg-slate-100 p-2 pr-2 rounded-3xl border border-transparent focus-within:bg-white focus-within:ring-4 transition-all focus-within:border-[var(--primary-ring)] focus-within:ring-[var(--primary-light)]">
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 bg-transparent border-none focus:ring-0 px-4 py-3 text-slate-800 placeholder:text-slate-400 max-h-32 resize-none"
+            className="flex-1 bg-transparent border-none focus:ring-0 px-4 py-3 text-slate-800 placeholder:text-slate-400 max-h-32 resize-none outline-none"
             placeholder="Antworte hier..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -224,7 +240,7 @@ export default function App({ config }: AppProps) {
             disabled={!inputValue.trim() || isLoading}
             className={`p-3 rounded-full flex-shrink-0 transition-all duration-200 ${
               inputValue.trim() && !isLoading
-                ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700 transform hover:scale-105' 
+                ? 'text-white shadow-md transform hover:scale-105 bg-[var(--primary-color)] hover:bg-[var(--primary-hover)]' 
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >
