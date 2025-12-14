@@ -1,6 +1,6 @@
 import { GoogleGenAI, Content } from "@google/genai";
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 const SYSTEM_INSTRUCTION = `
 Du bist ein freundlicher, geduldiger und hilfsbereiter Assistent für den TVöD Gehaltsrechner (Tarifvertrag für den öffentlichen Dienst).
@@ -47,11 +47,20 @@ function mapHistoryToContent(history: any[]): Content[] {
     }));
 }
 
-// Initialize Supabase Admin Client
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy Initialize Supabase Admin Client
+let supabaseAdminInstance: SupabaseClient | null = null;
+
+function getSupabaseAdmin() {
+    if (!supabaseAdminInstance) {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!url || !key) {
+            throw new Error("Supabase credentials (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) are missing.");
+        }
+        supabaseAdminInstance = createClient(url, key);
+    }
+    return supabaseAdminInstance;
+}
 
 export async function POST(request: Request) {
     try {
@@ -81,7 +90,7 @@ export async function POST(request: Request) {
 
         // 1. Rate Limiting (Simple SQL Based)
         // Check requests from this IP in the last minute
-        const { count: requestCount, error: rateLimitError } = await supabaseAdmin
+        const { count: requestCount, error: rateLimitError } = await getSupabaseAdmin()
             .from('request_logs')
             .select('*', { count: 'exact', head: true })
             .eq('ip_address', ip)
@@ -95,7 +104,7 @@ export async function POST(request: Request) {
         }
 
         // Log this request (async, don't await blocking)
-        supabaseAdmin.from('request_logs').insert({
+        getSupabaseAdmin().from('request_logs').insert({
             ip_address: ip,
             public_key: activeProjectId !== process.env.GEMINI_API_KEY ? activeProjectId : 'system_demo'
         }).then();
@@ -106,7 +115,7 @@ export async function POST(request: Request) {
         let customGeminiApiKey = null;
 
         if (activeProjectId !== process.env.GEMINI_API_KEY && activeProjectId !== 'DEMO') {
-             const { data: project, error: projectError } = await supabaseAdmin
+             const { data: project, error: projectError } = await getSupabaseAdmin()
                 .from('projects')
                 .select('allowed_origins, gemini_api_key')
                 .eq('public_key', activeProjectId)
