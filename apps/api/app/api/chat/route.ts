@@ -199,6 +199,36 @@ export async function POST(request: Request) {
 
         const text = result.text || "";
 
+        // Attempt to extract and save JSON result
+        const jsonMatch = text.match(/\[JSON_RESULT:\s*(\{[\s\S]*?\})\]/);
+        if (jsonMatch && jsonMatch[1]) {
+            try {
+                const salaryData = JSON.parse(jsonMatch[1]);
+                
+                // Save to database
+                const { error: insertError } = await getSupabaseAdmin()
+                    .from('salary_inquiries')
+                    .insert({
+                        public_key: activeProjectId,
+                        gruppe: salaryData.gruppe,
+                        stufe: salaryData.stufe,
+                        tarif: salaryData.tarif,
+                        jahr: salaryData.jahr,
+                        brutto: salaryData.brutto,
+                        netto: salaryData.netto,
+                        details: salaryData
+                    });
+
+                if (insertError) {
+                    console.error("Error saving salary inquiry:", insertError);
+                } else {
+                    console.log("Successfully saved salary inquiry.");
+                }
+            } catch (e) {
+                console.error("Error parsing or saving salary JSON:", e);
+            }
+        }
+
         // Return response with Dynamic CORS if needed, or rely on OPTIONS
         // If we want detailed CORS per response:
         const response = NextResponse.json({ text });
