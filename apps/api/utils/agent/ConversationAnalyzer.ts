@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { FormState } from '../../types/form';
 
 export type UserIntent =
@@ -15,10 +15,10 @@ export interface IntentAnalysis {
 }
 
 export class ConversationAnalyzer {
-  private client: GoogleGenAI;
+  private genAI: GoogleGenerativeAI;
 
   constructor(apiKey: string) {
-    this.client = new GoogleGenAI({ apiKey });
+    this.genAI = new GoogleGenerativeAI(apiKey);
   }
 
   /**
@@ -117,7 +117,7 @@ export class ConversationAnalyzer {
     currentState: FormState
   ): Promise<IntentAnalysis> {
     try {
-      const model = this.client.models.get('gemini-2.0-flash');
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
       const prompt = `
 Analyze the user's intent based on conversation context.

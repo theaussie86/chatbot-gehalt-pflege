@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { VectorstoreService } from '../../lib/vectorstore/VectorstoreService';
 
 export interface ValidationResult {
@@ -17,11 +17,11 @@ interface ValidationRules {
 }
 
 export class ResponseValidator {
-  private client: GoogleGenAI;
+  private genAI: GoogleGenerativeAI;
   private vectorstore: VectorstoreService;
 
   constructor(apiKey: string, vectorstore: VectorstoreService) {
-    this.client = new GoogleGenAI({ apiKey });
+    this.genAI = new GoogleGenerativeAI(apiKey);
     this.vectorstore = vectorstore;
   }
 
@@ -137,7 +137,7 @@ export class ResponseValidator {
     rules: ValidationRules
   ): Promise<ValidationResult> {
     try {
-      const model = this.client.models.get('gemini-2.0-flash');
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
       const prompt = `
 Validate and normalize this field value for a salary calculation form.
