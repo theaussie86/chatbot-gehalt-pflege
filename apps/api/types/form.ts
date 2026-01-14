@@ -14,9 +14,9 @@ export interface FormState {
     tax_details?: {
       taxClass?: string;   // 1-6
       churchTax?: boolean | string; // yes/no or specific
-      hasChildren?: boolean;
-      childCount?: number;
-      birthYear?: number;  // For PV-Zuschlag
+      hasChildren?: boolean; // simple check
+      childCount?: number;   // optional specifics
+      birthYear?: number;    // optional specifics
       [key: string]: any;
     };
   };

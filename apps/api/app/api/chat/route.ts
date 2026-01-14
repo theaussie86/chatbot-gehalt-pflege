@@ -136,143 +136,64 @@ export async function POST(request: Request) {
         const { currentFormState } = body as { currentFormState?: FormState };
         if (currentFormState) {
             const { getGenerativeModel } = await import("../../../lib/gemini");
+            const { SalaryStateMachine } = await import("../../../lib/salary-flow");
             const model = getGenerativeModel(finalGeminiApiKey);
 
             let nextFormState = { ...currentFormState };
-            let responseText = "";
-
-            // Helper to handle Generic Intent-Based Slot Filling
-            const handleGenericSlotFilling = async (
-                sectionName: string, 
-                currentData: any, 
-                requiredFields: string[], 
-                contextDescription: string
-            ) => {
-                // Initialize missing fields if starting fresh in this section
-                if (!nextFormState.missingFields || nextFormState.section !== sectionName) {
-                     // Check what's already there vs what is needed
-                     const existingKeys = Object.keys(currentData || {});
-                     nextFormState.missingFields = requiredFields.filter(f => !existingKeys.includes(f));
-                }
-
-                // If everything is present, we are done with this section
-                if (nextFormState.missingFields.length === 0) {
-                     return { done: true };
-                }
-
-                const prompt = `
-                  Du bist ein Assistent, der Daten für einen Gehaltsrechner einsammelt.
-                  Kontext: ${contextDescription}
-                  
-                  Aktuelle Daten: ${JSON.stringify(currentData || {})}
-                  Noch fehlende Felder: ${nextFormState.missingFields.join(', ')}.
-                  
-                  Der Nutzer sagt: "${message}".
-                  
-                  Aufgabe:
-                  1. Extrahiere Informationen für die fehlenden Felder aus der Nutzerantwort. Sei tolerant (z.B. "Steuerklasse 1" -> "1").
-                  2. Aktualisiere die Liste der fehlenden Felder.
-                  3. Generiere eine natürliche, kurze Frage für die WICHTIGSTEN noch verbleibenden Felder. Frage immer nur nach 1-2 Dingen gleichzeitig, um den Nutzer nicht zu überfordern.
-                  
-                  Antworte IMMER als JSON:
-                  {
-                    "extracted": { "field": "value", ... },
-                    "remainingMissingFields": ["..."],
-                    "nextQuestion": "..."
-                  }
-                `;
-
-                const result = await model.generateContent(prompt);
-                const text = result.response.text();
-                // Clean markdown code blocks if present
-                const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-                const extraction = JSON.parse(cleanJson);
-
-                return { 
-                    done: false, 
-                    extraction 
-                };
-            };
-
-            // PHASE 1: Job Details (Gross Income)
-            if (currentFormState.section === 'job_details') {
-                const requiredFields = ['tarif', 'experience', 'hours', 'state']; 
-                // 'group' is often implied by 'tarif' or specific job role, but let's keep it simple for now or ask if needed.
-                // We'll treat 'group' as optional or part of 'tarif' refinement later if needed, adding it to required if tarif implies it.
-                // For now, let's strictly ask for these 4 to get a rough calculator running.
-                
-                const { done, extraction } = await handleGenericSlotFilling(
-                    'job_details', 
-                    nextFormState.data.job_details, 
-                    requiredFields,
-                    "Es geht um die Ermittlung des Bruttogehalts im Pflegebereich. Wir brauchen Tarif (z.B. TVöD), Erfahrungsstufe/Jahre, Wochenstunden und Bundesland."
-                );
-
-                if (done) {
-                    // Transition to next phase
-                    nextFormState.section = 'tax_details';
-                    nextFormState.missingFields = ['taxClass', 'churchTax', 'hasChildren'];
-                    responseText = "Danke! Ich habe die Daten zu deinem Job. Um nun dein Nettogehalt zu berechnen: Welche Steuerklasse hast du?";
-                    // Initialize structure for next phase
-                    if (!nextFormState.data.tax_details) nextFormState.data.tax_details = {};
-                } else {
-                    if (extraction?.extracted) {
-                         nextFormState.data.job_details = { 
-                             ...nextFormState.data.job_details, 
-                             ...extraction.extracted 
-                         };
-                    }
-                    nextFormState.missingFields = extraction.remainingMissingFields || [];
-                    
-                    // Check completion AGAIN after extraction
-                    if (nextFormState.missingFields.length === 0) {
-                         nextFormState.section = 'tax_details';
-                         nextFormState.missingFields = ['taxClass', 'churchTax', 'hasChildren'];
-                         responseText = "Perfekt. Kommen wir jetzt zu den Steuern für die Netto-Berechnung. Welche Steuerklasse hast du?";
-                         if (!nextFormState.data.tax_details) nextFormState.data.tax_details = {};
-                    } else {
-                        responseText = extraction.nextQuestion;
-                    }
-                }
-            }
-
-            // PHASE 2: Tax Details (Net Income)
-            else if (currentFormState.section === 'tax_details') {
-                 const requiredFields = ['taxClass', 'churchTax', 'hasChildren'];
+            
+            // 1. EXTRACTION PHASE (If we were expecting data)
+            // We look at what was *previously* missing to decide what to extract
+            if (nextFormState.missingFields && nextFormState.missingFields.length > 0) {
+                 const extractPrompt = `
+                   Du bist ein Daten-Extraktor.
+                   Kontext: Wir sammeln Daten für: ${JSON.stringify(nextFormState.missingFields)}.
+                   Nutzer-Nachricht: "${message}"
+                   
+                   Aufgabe: Extrahiere Werte für die gesuchten Felder. Sei tolerant (z.B. "TVöD" -> "tvoed", "Klasse 1" -> "1").
+                   Gib NUR ein JSON zurück: { "extracted": { "field": "value" } }
+                   Wenn nichts gefunden, gib leeres Objekt.
+                 `;
                  
-                 const { done, extraction } = await handleGenericSlotFilling(
-                    'tax_details',
-                    nextFormState.data.tax_details,
-                    requiredFields,
-                    "Es geht um die Netto-Gehaltsberechnung. Wir brauchen Steuerklasse, Kirchensteuer (Ja/Nein), und ob Kinder vorhanden sind."
-                 );
-
-                 if (done) {
-                     nextFormState.section = 'summary';
-                     responseText = "Vielen Dank! Ich habe alle Daten. Soll ich die Berechnung starten?";
-                 } else {
-                     if (extraction?.extracted) {
-                         nextFormState.data.tax_details = { 
-                             ...nextFormState.data.tax_details, 
-                             ...extraction.extracted 
+                 try {
+                     const result = await model.generateContent(extractPrompt);
+                     const text = result.response.text();
+                     const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                     const extraction = JSON.parse(cleanJson);
+                     
+                     if (extraction.extracted) {
+                         // Merge into the correct data bucket based on current section
+                         const section = nextFormState.section as keyof typeof nextFormState.data;
+                         if (!nextFormState.data[section]) nextFormState.data[section] = {};
+                         
+                         nextFormState.data[section] = {
+                             ...nextFormState.data[section],
+                             ...extraction.extracted
                          };
-                    }
-                    nextFormState.missingFields = extraction.remainingMissingFields || [];
-                    
-                    if (nextFormState.missingFields.length === 0) {
-                         nextFormState.section = 'summary';
-                         responseText = "Danke, das reicht mir! Ich fasse zusammen..."; // Or trigger calculation directly
-                    } else {
-                        responseText = extraction.nextQuestion;
-                    }
+                     }
+                 } catch (e) {
+                     console.error("Extraction failed", e);
+                     // Proceed without update, state machine will just re-ask
                  }
             }
+
+            // 2. STATE MACHINE LOGIC (Transition & Guardrails)
+            const stepResult = SalaryStateMachine.getNextStep(nextFormState);
+            nextFormState = stepResult.nextState;
+
+            // 3. RESPONSE GENERATION
+            // Use the system instructions from the state machine to generate the final answer
+            const responsePrompt = `
+                Du bist ein freundlicher Gehalts-Chatbot für Pflegekräfte.
+                
+                Aktueller Status: Wir sind im Schritt "${nextFormState.section}".
+                Anweisung vom System: "${stepResult.systemInstructions}"
+                
+                Aufgabe: Generiere eine höfliche Antwort an den Nutzer basierend auf der Anweisung.
+                Halte dich kurz.
+            `;
             
-            // PHASE 3: Summary
-            else if (currentFormState.section === 'summary') {
-                responseText = "Die Berechnung ist abgeschlossen. (Hier würde das Ergebnis stehen)";
-                // Ideally trigger a separate tool or function for real calculation here
-            }
+            const responseResult = await model.generateContent(responsePrompt);
+            const responseText = responseResult.response.text();
 
             return NextResponse.json({ 
                 text: responseText, 
