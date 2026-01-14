@@ -1,14 +1,14 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 export class VectorstoreService {
   private supabase: SupabaseClient;
-  private genAI: GoogleGenerativeAI;
+  private genAI: GoogleGenAI;
   private cache: Map<string, { answer: string; timestamp: number }>;
 
   constructor(supabaseUrl: string, supabaseKey: string, geminiApiKey: string) {
     this.supabase = createClient(supabaseUrl, supabaseKey);
-    this.genAI = new GoogleGenerativeAI(geminiApiKey);
+    this.genAI = new GoogleGenAI({ apiKey: geminiApiKey });
     this.cache = new Map();
   }
 
@@ -114,10 +114,15 @@ export class VectorstoreService {
   private async generateEmbedding(text: string): Promise<number[]> {
     try {
       // Use Gemini's text-embedding-004 model (768 dimensions)
-      const model = this.genAI.getGenerativeModel({ model: 'text-embedding-004' });
+      const result = await this.genAI.models.embedContent({
+        model: 'text-embedding-004',
+        contents: text
+      });
 
-      const result = await model.embedContent(text);
-      return result.embedding.values;
+      if (result.embeddings && result.embeddings.length > 0 && result.embeddings[0].values) {
+          return result.embeddings[0].values;
+      }
+      throw new Error('No embedding returned');
 
     } catch (error) {
       console.error('[VectorstoreService] Embedding generation failed:', error);

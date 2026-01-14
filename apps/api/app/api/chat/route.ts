@@ -139,9 +139,9 @@ export async function POST(request: Request) {
         // --- HYBRID STATE MACHINE LOGIC ---
         const { currentFormState } = body as { currentFormState?: FormState };
         if (currentFormState) {
-            const { getGenerativeModel } = await import("../../../lib/gemini");
+            const { getGeminiClient } = await import("../../../lib/gemini");
             const { SalaryStateMachine } = await import("../../../lib/salary-flow");
-            const model = getGenerativeModel(finalGeminiApiKey);
+            const client = getGeminiClient(finalGeminiApiKey);
 
             // Deep clone to avoid mutation
             let nextFormState: FormState = JSON.parse(JSON.stringify(currentFormState));
@@ -198,8 +198,11 @@ export async function POST(request: Request) {
                     Wenn er eine neue Berechnung möchte, erkläre ihm, dass er einen neuen Chat starten kann.
                     Halte dich kurz.
                 `;
-                const responseResult = await model.generateContent(responsePrompt);
-                const responseText = responseResult.response.text();
+                const responseResult = await client.models.generateContent({
+                    model: 'gemini-2.0-flash-exp',
+                    contents: responsePrompt
+                });
+                const responseText = responseResult.text || '';
 
                 return NextResponse.json({
                     text: responseText,
@@ -234,8 +237,11 @@ export async function POST(request: Request) {
                     Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                 `;
 
-                const responseResult = await model.generateContent(questionPrompt);
-                let responseText = responseResult.response.text();
+                const responseResult = await client.models.generateContent({
+                    model: 'gemini-2.0-flash-exp',
+                    contents: questionPrompt
+                });
+                let responseText = responseResult.text || '';
 
                 // Add progress marker if not present
                 if (!responseText.includes('[PROGRESS:')) {
@@ -258,9 +264,12 @@ export async function POST(request: Request) {
 
                         Erkläre kurz, dass noch Informationen fehlen und frage danach.
                     `;
-                    const responseResult = await model.generateContent(errorPrompt);
+                    const responseResult = await client.models.generateContent({
+                        model: 'gemini-2.0-flash-exp',
+                        contents: errorPrompt
+                    });
                     return NextResponse.json({
-                        text: responseResult.response.text(),
+                        text: responseResult.text || '',
                         formState: nextFormState
                     });
                 }
@@ -367,9 +376,12 @@ export async function POST(request: Request) {
 
                         Entschuldige dich höflich und bitte den Nutzer, die Daten zu überprüfen.
                     `;
-                    const responseResult = await model.generateContent(errorPrompt);
+                    const responseResult = await client.models.generateContent({
+                        model: 'gemini-2.0-flash-exp',
+                        contents: errorPrompt
+                    });
                     return NextResponse.json({
-                        text: responseResult.response.text(),
+                        text: responseResult.text || '',
                         formState: nextFormState
                     });
                 }
@@ -399,8 +411,12 @@ export async function POST(request: Request) {
                 `;
 
                 try {
-                    const modResult = await model.generateContent(modificationPrompt);
-                    const modText = modResult.response.text();
+                    const modResult = await client.models.generateContent({
+                        model: 'gemini-2.0-flash-exp',
+                        contents: modificationPrompt,
+                        config: { responseMimeType: 'application/json' }
+                    });
+                    const modText = modResult.text || '';
                     const cleanJson = modText.replace(/```json/g, '').replace(/```/g, '').trim();
                     const modification = JSON.parse(cleanJson);
 
@@ -456,9 +472,12 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
 
                     Frage höflich nach, welchen Wert der Nutzer ändern möchte.
                 `;
-                const responseResult = await model.generateContent(clarifyPrompt);
+                const responseResult = await client.models.generateContent({
+                    model: 'gemini-2.0-flash-exp',
+                    contents: clarifyPrompt
+                });
                 return NextResponse.json({
-                    text: responseResult.response.text() + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`,
+                    text: (responseResult.text || '') + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`,
                     formState: nextFormState
                 });
             }
@@ -491,8 +510,12 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                 `;
 
                 try {
-                    const result = await model.generateContent(extractPrompt);
-                    const text = result.response.text();
+                    const result = await client.models.generateContent({
+                        model: 'gemini-2.0-flash-exp',
+                        contents: extractPrompt,
+                        config: { responseMimeType: 'application/json' }
+                    });
+                    const text = result.text || '';
                     const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
                     const extraction = JSON.parse(cleanJson);
 
@@ -546,9 +569,12 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                     Beispiel: "Ich habe deine Angabe zu den Wochenstunden nicht ganz verstanden. Kannst du mir sagen, wie viele Stunden du pro Woche arbeitest? Zum Beispiel 38,5 für Vollzeit oder 20 für Teilzeit."
                 `;
 
-                const responseResult = await model.generateContent(clarifyPrompt);
+                const responseResult = await client.models.generateContent({
+                    model: 'gemini-2.0-flash-exp',
+                    contents: clarifyPrompt
+                });
                 return NextResponse.json({
-                    text: responseResult.response.text() + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`,
+                    text: (responseResult.text || '') + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`,
                     formState: nextFormState
                 });
             }
@@ -576,9 +602,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
 
             // --- US-009 & US-010: RESPONSE GENERATION WITH USER-FRIENDLY LANGUAGE ---
             const progress = SalaryStateMachine.getProgress(nextFormState);
-            const missingFieldLabels = nextFormState.missingFields
-                .map(f => SalaryStateMachine.getFieldLabel(f))
-                .join(', ');
+
 
             // Build context-aware prompt for user-friendly questions
             const userFriendlyPrompt = buildUserFriendlyPrompt(
@@ -588,8 +612,11 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                 progress
             );
 
-            const responseResult = await model.generateContent(userFriendlyPrompt);
-            let responseText = responseResult.response.text();
+            const responseResult = await client.models.generateContent({
+                 model: 'gemini-2.0-flash-exp',
+                 contents: userFriendlyPrompt
+            });
+            let responseText = responseResult.text || '';
 
             // Ensure progress marker is included
             if (!responseText.includes('[PROGRESS:')) {

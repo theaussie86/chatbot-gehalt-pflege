@@ -1,8 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { VectorstoreService } from '../../lib/vectorstore/VectorstoreService';
 
 export interface ValidationResult {
   valid: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   normalizedValue?: any;
   error?: string;
   suggestion?: string;
@@ -17,11 +18,11 @@ interface ValidationRules {
 }
 
 export class ResponseValidator {
-  private genAI: GoogleGenerativeAI;
+  private genAI: GoogleGenAI;
   private vectorstore: VectorstoreService;
 
   constructor(apiKey: string, vectorstore: VectorstoreService) {
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    this.genAI = new GoogleGenAI({ apiKey });
     this.vectorstore = vectorstore;
   }
 
@@ -34,6 +35,7 @@ export class ResponseValidator {
    */
   async validate(
     field: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rawValue: any,
     projectId: string
   ): Promise<ValidationResult> {
@@ -64,6 +66,7 @@ export class ResponseValidator {
    */
   private basicValidation(
     field: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     value: any,
     rules: ValidationRules
   ): ValidationResult {
@@ -137,8 +140,6 @@ export class ResponseValidator {
     rules: ValidationRules
   ): Promise<ValidationResult> {
     try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
       const prompt = `
 Validate and normalize this field value for a salary calculation form.
 
@@ -168,8 +169,12 @@ Respond with JSON only:
 }
 `;
 
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
+      const result = await this.genAI.models.generateContent({
+        model: 'gemini-2.0-flash-exp',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' }
+      });
+      const text = result.text || '';
       const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
       return JSON.parse(cleanJson) as ValidationResult;

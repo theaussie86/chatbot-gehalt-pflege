@@ -1,20 +1,17 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
-export const getGenerativeModel = (apiKey: string) => {
-  const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
-    generationConfig: { responseMimeType: "application/json" }
-  });
+export const getGeminiClient = (apiKey: string) => {
+  return new GoogleGenAI({ apiKey });
 };
 
 // Schema for extraction
+// Note: SchemaType structure might differ, checking documentation or adapting
 export const extractionSchema = {
   description: "Extrahiere Formulardaten aus dem Text",
-  type: SchemaType.OBJECT,
+  type: "OBJECT",
   properties: {
-    extractedData: { type: SchemaType.OBJECT },
-    isComplete: { type: SchemaType.BOOLEAN },
-    nextQuestion: { type: SchemaType.STRING }
+    extractedData: { type: "OBJECT" },
+    isComplete: { type: "BOOLEAN" },
+    nextQuestion: { type: "STRING" }
   }
 };

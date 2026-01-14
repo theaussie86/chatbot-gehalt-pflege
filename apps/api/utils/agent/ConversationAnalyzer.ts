@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import type { FormState } from '../../types/form';
 
 export type UserIntent =
@@ -15,10 +15,10 @@ export interface IntentAnalysis {
 }
 
 export class ConversationAnalyzer {
-  private genAI: GoogleGenerativeAI;
+  private genAI: GoogleGenAI;
 
   constructor(apiKey: string) {
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    this.genAI = new GoogleGenAI({ apiKey });
   }
 
   /**
@@ -117,8 +117,6 @@ export class ConversationAnalyzer {
     currentState: FormState
   ): Promise<IntentAnalysis> {
     try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
       const prompt = `
 Analyze the user's intent based on conversation context.
 
@@ -142,8 +140,13 @@ Respond with JSON only:
 }
 `;
 
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
+      const result = await this.genAI.models.generateContent({
+        model: 'gemini-2.0-flash-exp',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' }
+      });
+      
+      const text = result.text || '';
       const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
       const parsed = JSON.parse(cleanJson);
