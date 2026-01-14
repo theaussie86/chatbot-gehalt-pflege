@@ -36,3 +36,5 @@ pnpm-debug.log*
 # Monorepo
 .turbo
 .vercel
+
+apps/api/tsconfig.tsbuildinfo
