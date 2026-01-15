@@ -2,6 +2,29 @@
 
 import { useState } from 'react';
 import { uploadDocumentAction, deleteDocumentAction } from '@/app/actions/documents';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 interface Document {
     id: string;
@@ -19,12 +42,21 @@ interface DocumentManagerProps {
 
 export default function DocumentManager({ projectId, documents }: DocumentManagerProps) {
     const [isUploading, setIsUploading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+
+    const [confirmState, setConfirmState] = useState<{
+        isOpen: boolean;
+        type: 'delete' | 'reprocess';
+        documentId: string;
+    }>({ isOpen: false, type: 'delete', documentId: '' });
+
+    const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+    const [feedbackText, setFeedbackText] = useState("");
 
     async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         setIsUploading(true);
-        setError(null);
+        setUploadError(null);
 
         const form = e.currentTarget;
         const formData = new FormData(form);
@@ -36,7 +68,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         // Basic client-side validation
         const file = formData.get('file') as File;
         if (!file || file.size === 0) {
-            setError("Please select a file.");
+            setUploadError("Please select a file.");
             setIsUploading(false);
             return;
         }
@@ -44,27 +76,78 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         const result = await uploadDocumentAction(formData);
 
         if (result.error) {
-            setError(result.error);
+           setUploadError(result.error);
+           toast.error(result.error);
         } else {
             form.reset();
+            toast.success("Document uploaded successfully");
         }
         setIsUploading(false);
     }
 
-    async function handleDelete(documentId: string) {
-        if (!confirm("Are you sure you want to delete this document?")) return;
-        
-        const result = await deleteDocumentAction(documentId, projectId || '');
-        if (result.error) {
-            alert(result.error);
+    const openDeleteConfirm = (docId: string) => {
+        setConfirmState({ isOpen: true, type: 'delete', documentId: docId });
+    };
+
+    const openReprocessConfirm = (docId: string) => {
+        setConfirmState({ isOpen: true, type: 'reprocess', documentId: docId });
+    };
+
+    const handleConfirmAction = async () => {
+        setConfirmState(prev => ({ ...prev, isOpen: false }));
+        const { type, documentId } = confirmState;
+
+        if (type === 'delete') {
+            const result = await deleteDocumentAction(documentId, projectId || '');
+            if (result.error) {
+                toast.error(`Error deleting document: ${result.error}`);
+            } else {
+                toast.success("Document deleted successfully");
+            }
+        } else if (type === 'reprocess') {
+            const { reprocessDocumentAction } = await import('@/app/actions/documents');
+            const toastId = toast.loading("Reprocessing document...");
+            try {
+                const res = await reprocessDocumentAction(documentId);
+                if (res.error) {
+                    toast.error(`Reprocessing failed: ${res.error}`, { id: toastId });
+                } else {
+                    toast.success(`Success! Generated ${res.count} chunks.`, { id: toastId });
+                }
+            } catch (e: any) {
+                 toast.error(`Reprocessing error: ${e.message}`, { id: toastId });
+            }
         }
-    }
+    };
+
+    const handleDownload = async (doc: Document) => {
+        const { getDocumentDownloadUrlAction } = await import('@/app/actions/documents');
+        const result = await getDocumentDownloadUrlAction(doc.id);
+        if (result.url) {
+            window.open(result.url, '_blank');
+        } else {
+             toast.error(result.error || "Failed to get download URL");
+        }
+    };
+    
+    const handleFeedbackSubmit = () => {
+        // Implement feedback submission logic here
+        console.log("Feedback submitted:", feedbackText);
+        setFeedbackText("");
+        setIsFeedbackOpen(false);
+        toast.success("Your feedback has been received. Thank you!");
+    };
 
     return (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mt-6">
-            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-100">
-                {projectId ? "Project Documents" : "All Documents"}
-            </h2>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mt-6 relative">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+                    {projectId ? "Project Documents" : "All Documents"}
+                </h2>
+                <Button variant="outline" size="sm" onClick={() => setIsFeedbackOpen(true)}>
+                    Feedback
+                </Button>
+            </div>
             
             <div className="mb-6">
                  {documents.length === 0 ? (
@@ -91,15 +174,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                         {/* Download Link */}
                                         {doc.storage_path && (
                                             <button
-                                                onClick={async () => {
-                                                    const { getDocumentDownloadUrlAction } = await import('@/app/actions/documents');
-                                                    const result = await getDocumentDownloadUrlAction(doc.id);
-                                                    if (result.url) {
-                                                        window.open(result.url, '_blank');
-                                                    } else {
-                                                        alert(result.error || "Failed to get download URL");
-                                                    }
-                                                }}
+                                                onClick={() => handleDownload(doc)}
                                                 className="text-xs text-blue-600 hover:text-blue-800 underline mt-1 block"
                                             >
                                                 Download PDF
@@ -109,20 +184,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <button
-                                        onClick={async () => {
-                                            if (!confirm("Reprocess embeddings for this document? This will clear existing chunks.")) return;
-                                            const { reprocessDocumentAction } = await import('@/app/actions/documents');
-                                            try {
-                                                const res = await reprocessDocumentAction(doc.id);
-                                                if (res.error) {
-                                                    alert(`Error: ${res.error}`);
-                                                } else {
-                                                    alert(`Success! Generated ${res.count} chunks.`);
-                                                }
-                                            } catch (e: any) {
-                                                alert(`Error: ${e.message}`);
-                                            }
-                                        }}
+                                        onClick={() => openReprocessConfirm(doc.id)}
                                         className="text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
                                         title="Reprocess Embeddings"
                                     >
@@ -131,7 +193,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                         </svg>
                                     </button>
                                     <button 
-                                        onClick={() => handleDelete(doc.id)}
+                                        onClick={() => openDeleteConfirm(doc.id)}
                                         className="text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
                                         title="Delete Document"
                                     >
@@ -164,7 +226,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                 dark:file:bg-gray-700 dark:file:text-white
                             "
                         />
-                         {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+                         {uploadError && <p className="text-red-500 text-xs mt-1">{uploadError}</p>}
                     </div>
                     <button 
                         type="submit" 
@@ -175,6 +237,54 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                     </button>
                 </form>
             </div>
+
+            {/* Confirmation Dialog (Action) */}
+            <AlertDialog open={confirmState.isOpen} onOpenChange={(open) => setConfirmState(prev => ({ ...prev, isOpen: open }))}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmState.type === 'delete' 
+                                ? "This action cannot be undone. This will permanently delete the document."
+                                : "This will clear all existing embeddings for this document and regenerate them. This process might take a while."
+                            }
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmAction} className={confirmState.type === 'delete' ? "bg-red-600 hover:bg-red-700" : ""}>
+                            {confirmState.type === 'delete' ? "Delete" : "Reprocess"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Feedback Dialog */}
+             <Dialog open={isFeedbackOpen} onOpenChange={setIsFeedbackOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Send Feedback</DialogTitle>
+                        <DialogDescription>
+                            We'd love to hear your thoughts. Please share your feedback below.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="feedback">Your Feedback</Label>
+                            <Textarea 
+                                id="feedback" 
+                                value={feedbackText} 
+                                onChange={(e) => setFeedbackText(e.target.value)}
+                                placeholder="Type your message here..."
+                                className="min-h-[100px]"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button onClick={handleFeedbackSubmit}>Submit Feedback</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
