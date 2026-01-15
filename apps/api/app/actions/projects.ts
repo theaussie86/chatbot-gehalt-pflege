@@ -10,7 +10,7 @@ export type Project = {
   public_key: string;
   allowed_origins: string[] | null;
   gemini_api_key: string | null;
-  user_id: string | null;
+  // user_id removed
 };
 
 export async function getProjects() {
@@ -21,10 +21,10 @@ export async function getProjects() {
     throw new Error('Unauthorized');
   }
 
+  // RLS ensures we only see our projects
   const { data, error } = await supabase
     .from('projects')
     .select('*')
-    .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -59,7 +59,7 @@ export async function createProject(prevState: any, formData: FormData) {
     .from('projects')
     .insert({
       name,
-      user_id: user.id,
+      // user_id removed, trigger handles membership
       public_key: publicKey,
       allowed_origins,
       gemini_api_key: (formData.get('gemini_api_key') as string) || null,
@@ -100,8 +100,8 @@ export async function updateProject(prevState: any, formData: FormData) {
       allowed_origins,
       gemini_api_key: (formData.get('gemini_api_key') as string) || null,
     })
-    .eq('id', id)
-    .eq('user_id', user.id);
+    .eq('id', id);
+    // .eq('user_id', user.id) removed - RLS handles permission
 
   if (error) {
     return { error: error.message };
@@ -122,8 +122,8 @@ export async function deleteProject(id: string) {
   const { error } = await supabase
     .from('projects')
     .delete()
-    .eq('id', id)
-    .eq('user_id', user.id);
+    .eq('id', id);
+    // .eq('user_id', user.id) removed - RLS handles permission
 
   if (error) {
     return { error: error.message };

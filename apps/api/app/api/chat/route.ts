@@ -76,7 +76,7 @@ export async function POST(request: Request) {
         if (activeProjectId !== process.env.GEMINI_API_KEY && activeProjectId !== 'DEMO') {
              const { data: project, error: projectError } = await getSupabaseAdmin()
                 .from('projects')
-                .select('id, user_id, allowed_origins, gemini_api_key')
+                .select('id, allowed_origins, gemini_api_key') // removed user_id
                 .eq('public_key', activeProjectId)
                 .single();
 
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
             const { data: documents } = await getSupabaseAdmin()
                 .from('documents')
                 .select('mime_type, google_file_uri')
-                .or(`project_id.eq.${project.id},and(project_id.is.null,user_id.eq.${project.user_id})`);
+                .or(`project_id.eq.${project.id},project_id.is.null`);
 
             if (documents && documents.length > 0) {
                  const fileParts = documents.map(doc => ({
