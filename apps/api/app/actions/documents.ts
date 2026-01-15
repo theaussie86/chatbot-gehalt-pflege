@@ -25,9 +25,9 @@ export async function uploadDocumentAction(formData: FormData) {
         );
 
         if (projectId) {
-            revalidatePath(`/dashboard/projects/${projectId}`);
+            revalidatePath(`/projects/${projectId}`);
         }
-        revalidatePath('/dashboard/documents'); // Revalidate global list
+        revalidatePath('/documents'); // Revalidate global list
         return { success: true };
     } catch (error: any) {
         console.error("Upload Action Error", error);
@@ -43,7 +43,7 @@ export async function deleteDocumentAction(documentId: string, projectId: string
 
         await deleteDocumentService(documentId, user.id);
 
-        revalidatePath(`/dashboard/projects/${projectId}`);
+        revalidatePath(`/projects/${projectId}`);
         return { success: true };
     } catch (error: any) {
          console.error("Delete Action Error", error);

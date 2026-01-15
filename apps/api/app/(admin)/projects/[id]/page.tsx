@@ -29,7 +29,7 @@ export default async function ProjectDetailsPage({ params }: { params: Promise<{
         <div className="max-w-4xl mx-auto">
              <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
-                     <Link href="/dashboard/projects" className="text-gray-500 hover:text-gray-700">
+                     <Link href="/projects" className="text-gray-500 hover:text-gray-700">
                         &larr; Back
                     </Link>
                     <h1 className="text-2xl font-bold text-gray-800 dark:text-white">

@@ -69,7 +69,7 @@ export async function createProject(prevState: any, formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath('/dashboard/projects');
+  revalidatePath('/projects');
   return { success: true };
 }
 
@@ -107,7 +107,7 @@ export async function updateProject(prevState: any, formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath('/dashboard/projects');
+  revalidatePath('/projects');
   return { success: true };
 }
 
@@ -129,6 +129,6 @@ export async function deleteProject(id: string) {
     return { error: error.message };
   }
 
-  revalidatePath('/dashboard/projects');
+  revalidatePath('/projects');
   return { success: true };
 }
