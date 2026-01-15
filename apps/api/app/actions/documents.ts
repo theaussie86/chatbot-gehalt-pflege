@@ -50,3 +50,42 @@ export async function deleteDocumentAction(documentId: string, projectId: string
          return { error: error.message };
     }
 }
+
+export async function getDocumentDownloadUrlAction(documentId: string) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const { data: document, error: fetchError } = await supabase
+            .from("documents")
+            .select("storage_path, user_id")
+            .eq("id", documentId)
+            .single();
+
+        if (fetchError || !document) {
+            throw new Error("Document not found");
+        }
+
+        if (document.user_id !== user.id) {
+            throw new Error("Unauthorized");
+        }
+
+        if (!document.storage_path) {
+            throw new Error("Document has no storage path");
+        }
+
+        const { data, error } = await supabase.storage
+            .from('project-files')
+            .createSignedUrl(document.storage_path, 3600); // 1 hour
+
+        if (error) {
+            throw new Error(`Storage error: ${error.message}`);
+        }
+
+        return { url: data.signedUrl };
+    } catch (error: any) {
+        console.error("Download URL Action Error", error);
+        return { error: error.message };
+    }
+}
