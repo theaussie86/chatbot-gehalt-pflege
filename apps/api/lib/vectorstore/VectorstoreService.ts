@@ -13,6 +13,66 @@ export class VectorstoreService {
   }
 
   /**
+   * Split text into chunks for better RAG performance
+   * @param text Full text content
+   * @param chunkSize Target size of each chunk (default 1000)
+   * @returns Array of text chunks
+   */
+  public splitTextIntoChunks(text: string, chunkSize: number = 1000): string[] {
+    const chunks: string[] = [];
+    let currentChunk = "";
+    
+    // Simple splitting by paragraphs first
+    const paragraphs = text.split(/\n\s*\n/);
+    
+    for (const paragraph of paragraphs) {
+      if ((currentChunk.length + paragraph.length) > chunkSize && currentChunk.length > 0) {
+        chunks.push(currentChunk.trim());
+        currentChunk = "";
+      }
+      currentChunk += (currentChunk ? "\n\n" : "") + paragraph;
+    }
+    
+    if (currentChunk.trim().length > 0) {
+      chunks.push(currentChunk.trim());
+    }
+    
+    return chunks;
+  }
+
+  /**
+   * Extract text from a file using Gemini (multimodal capabilities)
+   * @param fileUri The URI of the file in Google File API
+   * @param mimeType The MIME type of the file
+   * @returns Extracted text content
+   */
+  async extractTextFromFile(fileUri: string, mimeType: string): Promise<string> {
+    try {
+      // Use Gemini 1.5 Flash for efficient text extraction
+      const result = await this.genAI.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: [
+          {
+            parts: [
+              {
+                fileData: {
+                  mimeType: mimeType,
+                  fileUri: fileUri
+                }
+              },
+              { text: "Extract all the text from this document. Return only the text content." }
+            ]
+          }
+        ]
+      });
+      return result.text || "";
+    } catch (error) {
+      console.error('[VectorstoreService] Text extraction failed:', error);
+      throw new Error('Failed to extract text from file');
+    }
+  }
+
+  /**
    * Query vectorstore for user questions using semantic search
    * @param question The user's question
    * @param projectId The project ID for filtering
@@ -46,13 +106,14 @@ export class VectorstoreService {
         return "Ich habe dazu keine spezifischen Informationen in meinen Dokumenten.";
       }
 
+      
       // 3. Combine results into context
       if (!results || results.length === 0) {
         return "Ich habe dazu keine spezifischen Informationen in meinen Dokumenten.";
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const answer = results.map((r: any) => r.content).join('\n\n');
+      const answer = results.map((r: any) => r.content).join('\n\n---\n\n');
 
       // Cache the result
       this.cache.set(cacheKey, { answer, timestamp: Date.now() });
@@ -111,7 +172,7 @@ export class VectorstoreService {
    * @param text The text to embed
    * @returns Embedding vector as number array
    */
-  private async generateEmbedding(text: string): Promise<number[]> {
+  public async generateEmbedding(text: string): Promise<number[]> {
     try {
       // Use Gemini's text-embedding-004 model (768 dimensions)
       const result = await this.genAI.models.embedContent({

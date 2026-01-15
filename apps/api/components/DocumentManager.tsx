@@ -9,6 +9,7 @@ interface Document {
     mime_type: string;
     created_at: string;
     project_id?: string | null;
+    storage_path?: string;
 }
 
 interface DocumentManagerProps {
@@ -78,7 +79,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                     </svg>
                                     <div>
                                         <p className="font-medium text-gray-900 dark:text-gray-200">{doc.filename}</p>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2 items-center">
                                             <p className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString()}</p>
                                             {!projectId && doc.project_id && (
                                                 <span className="text-xs bg-blue-100 text-blue-800 px-1.5 rounded">Project: {doc.project_id}</span>
@@ -87,6 +88,23 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                                 <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 rounded">Global</span>
                                             )}
                                         </div>
+                                        {/* Download Link */}
+                                        {doc.storage_path && (
+                                            <button
+                                                onClick={async () => {
+                                                    const { getDocumentDownloadUrlAction } = await import('@/app/actions/documents');
+                                                    const result = await getDocumentDownloadUrlAction(doc.id);
+                                                    if (result.url) {
+                                                        window.open(result.url, '_blank');
+                                                    } else {
+                                                        alert(result.error || "Failed to get download URL");
+                                                    }
+                                                }}
+                                                className="text-xs text-blue-600 hover:text-blue-800 underline mt-1 block"
+                                            >
+                                                Download PDF
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                                 <button 
