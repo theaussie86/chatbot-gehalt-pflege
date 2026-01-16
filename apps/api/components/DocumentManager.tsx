@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { uploadDocumentAction, deleteDocumentAction } from '@/app/actions/documents';
 import {
   Dialog,
@@ -9,7 +10,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge"; // Ensure this exists or use inline styles if not
 
 interface Document {
     id: string;
@@ -33,6 +34,7 @@ interface Document {
     created_at: string;
     project_id?: string | null;
     storage_path?: string;
+    status: 'pending' | 'processing' | 'embedded' | 'error';
 }
 
 interface DocumentManagerProps {
@@ -41,6 +43,7 @@ interface DocumentManagerProps {
 }
 
 export default function DocumentManager({ projectId, documents }: DocumentManagerProps) {
+    const router = useRouter();
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -80,7 +83,8 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
            toast.error(result.error);
         } else {
             form.reset();
-            toast.success("Document uploaded successfully");
+            toast.success("Document uploaded. Processing started in background.");
+            router.refresh(); // Refresh to see the new document in 'pending'/'processing' state
         }
         setIsUploading(false);
     }
@@ -103,16 +107,25 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                 toast.error(`Error deleting document: ${result.error}`);
             } else {
                 toast.success("Document deleted successfully");
+                router.refresh();
             }
         } else if (type === 'reprocess') {
             const { reprocessDocumentAction } = await import('@/app/actions/documents');
-            const toastId = toast.loading("Reprocessing document...");
+            const toastId = toast.loading("Triggering reprocessing...");
             try {
+                // Call reprocess which now updates status to 'processing' and runs logic
+                // We should await it if we want to wait for completion, but for 'processing' status check
+                // we might just want to kick it off.
+                // However, reprocessDocumentAction awaits reprocessDocumentService which awaits everything.
+                // If we want it to be background, the Action should return or we assume it's fast enough 
+                // OR we accept waiting. 
+                // Given the user wants "status", let's wait for the result here so we know if it *started* ok.
                 const res = await reprocessDocumentAction(documentId);
                 if (res.error) {
                     toast.error(`Reprocessing failed: ${res.error}`, { id: toastId });
                 } else {
-                    toast.success(`Success! Generated ${res.count} chunks.`, { id: toastId });
+                    toast.success(`Broadcasting done. Generated ${res.count} chunks.`, { id: toastId });
+                    router.refresh();
                 }
             } catch (e: any) {
                  toast.error(`Reprocessing error: ${e.message}`, { id: toastId });
@@ -138,15 +151,29 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         toast.success("Your feedback has been received. Thank you!");
     };
 
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'embedded': return 'bg-green-100 text-green-800 hover:bg-green-100';
+            case 'processing': return 'bg-blue-100 text-blue-800 hover:bg-blue-100 animate-pulse';
+            case 'error': return 'bg-red-100 text-red-800 hover:bg-red-100';
+            default: return 'bg-gray-100 text-gray-800 hover:bg-gray-100';
+        }
+    };
+
     return (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mt-6 relative">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
                     {projectId ? "Project Documents" : "All Documents"}
                 </h2>
-                <Button variant="outline" size="sm" onClick={() => setIsFeedbackOpen(true)}>
-                    Feedback
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => router.refresh()}>
+                        Refresh List
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setIsFeedbackOpen(true)}>
+                        Feedback
+                    </Button>
+                </div>
             </div>
             
             <div className="mb-6">
@@ -161,8 +188,13 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v15a2 2 0 002 2z" />
                                     </svg>
                                     <div>
-                                        <p className="font-medium text-gray-900 dark:text-gray-200">{doc.filename}</p>
-                                        <div className="flex gap-2 items-center">
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-medium text-gray-900 dark:text-gray-200">{doc.filename}</p>
+                                            <Badge className={getStatusColor(doc.status)} variant="secondary">
+                                                {doc.status || 'unknown'}
+                                            </Badge>
+                                        </div>
+                                        <div className="flex gap-2 items-center mt-1">
                                             <p className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString()}</p>
                                             {!projectId && doc.project_id && (
                                                 <span className="text-xs bg-blue-100 text-blue-800 px-1.5 rounded">Project: {doc.project_id}</span>
@@ -185,7 +217,8 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                 <div className="flex items-center space-x-2">
                                     <button
                                         onClick={() => openReprocessConfirm(doc.id)}
-                                        className="text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        disabled={doc.status === 'processing'}
+                                        className="text-gray-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100 transition-opacity"
                                         title="Reprocess Embeddings"
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

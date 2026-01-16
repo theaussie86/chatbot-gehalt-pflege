@@ -18,7 +18,6 @@ export async function uploadDocumentService(
     projectId: string | null,
     userId: string
 ) {
-    const client = getGeminiClient();
     const supabase = await createClient(); // Note: This uses cookies from the request context
 
     // 1. Upload to Supabase Storage
@@ -37,8 +36,8 @@ export async function uploadDocumentService(
         throw new Error(`Storage upload failed: ${storageError.message}`);
     }
 
-    // 4. Save to DB (Parent Document) FIRST
-    // This ensures we have a record even if extraction fails
+    // 2. Save to DB (Parent Document)
+    // Initialize with 'pending' status
     const { data: document, error: dbError } = await supabase
         .from("documents")
         .insert({
@@ -47,7 +46,8 @@ export async function uploadDocumentService(
             filename: fileName,
             mime_type: mimeType,
             storage_path: storagePath,
-            storage_object_id: (uploadData as any).id, // Save link to storage object
+            storage_object_id: (uploadData as any).id,
+            status: 'pending' // Initial status
         })
         .select()
         .single();
@@ -59,69 +59,17 @@ export async function uploadDocumentService(
         throw new Error(`Database error: ${dbError.message}`);
     }
 
-    // 3. Independent Extraction Process
-    // We don't await this to block the response, or we catch errors to ensure the document persists
-    // For now, we'll await but catch errors so the user gets a success response with a warning if extraction fails
-    try {
-        // Upload to Google for Extraction (Ephemeral)
-        const arrayBuffer = await file.arrayBuffer();
-        const uploadResult = await client.files.upload({
-            file: new Blob([arrayBuffer]),
-            config: {
-                mimeType: mimeType,
-                displayName: fileName
-            }
-        });
+    // 3. Trigger Extraction Process (Background)
+    // We explicitly DO NOT await this to return the response immediately (Fire and forget)
+    // Note: In serverless environments, this might be terminated early. 
+    // Ideally use a queue or Next.js experimental `after()`.
+    // For now, we behave as requested: trigger processing as a background task.
+    reprocessDocumentService(document.id).catch(err => {
+        console.error("Background processing failed:", err);
+        // Attempt to update status to error if possible, but context might be lost
+    });
 
-        if (!uploadResult.uri) {
-            console.error("Failed to upload file to Gemini for extraction");
-        } else {
-             // Initialize VectorstoreService
-            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-            const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-            const geminiKey = process.env.GEMINI_API_KEY;
-
-            if (supabaseUrl && supabaseKey && geminiKey) {
-                const vectorService = new VectorstoreService(
-                    supabaseUrl,
-                    supabaseKey, 
-                    geminiKey
-                );
-
-                const content = await vectorService.extractTextFromFile(uploadResult.uri, mimeType);
-                
-                // Update document with Google file info
-                // Columns removed, so we skip update of uri/name
-                 /* await supabase.from("documents").update({
-                    google_file_uri: uploadResult.uri,
-                    google_file_name: uploadResult.name
-                }).eq('id', document.id); */
-
-                // --- 5. Chunking & Embedding (Moved inside try block) ---
-                const chunks = vectorService.splitTextIntoChunks(content, 1000);
-                
-                for (const chunkText of chunks) {
-                    const embedding = await vectorService.generateEmbedding(chunkText);
-                    
-                    await supabase.from("document_chunks")
-                        .insert({
-                            document_id: document.id,
-                            content: chunkText,
-                            embedding: embedding,
-                            token_count: chunkText.length / 4 // Approx
-                        });
-                }
-
-                // Cleanup after successful processing
-                 try { await client.files.delete({ name: uploadResult.name! }); } catch {}
-            }
-        }
-    } catch (processError) {
-        console.error("Extraction/Embedding Warning (Document saved but not processed):", processError);
-        // Use a notification or log but don't fail the upload
-    }
-
-    return document; // Return the created document
+    return document;
 }
 
 export async function deleteDocumentService(documentId: string, userId: string) {
@@ -184,32 +132,35 @@ export async function reprocessDocumentService(documentId: string) {
 
     console.log(`Reprocessing document: ${document.filename} (${document.id})`);
 
-    // 2. Download from Supabase Storage
-    if (!document.storage_path) {
-        throw new Error("Document has no storage path");
-    }
+    // Set status to Processing
+    await supabase.from("documents").update({ status: 'processing' }).eq('id', documentId);
 
-    const { data: fileBlob, error: downloadError } = await supabase
-        .storage
-        .from('project-files')
-        .download(document.storage_path);
-
-    if (downloadError || !fileBlob) {
-        throw new Error(`Failed to download file from storage: ${downloadError?.message}`);
-    }
-
-    // 3. Delete existing chunks (Start fresh)
-    const { error: chunkDeleteError } = await supabase
-        .from("document_chunks")
-        .delete()
-        .eq("document_id", documentId);
-    
-    if (chunkDeleteError) {
-        throw new Error(`Failed to clear existing chunks: ${chunkDeleteError.message}`);
-    }
-
-    // 4. Run Extraction Pipeline (Gemini)
     try {
+        // 2. Download from Supabase Storage
+        if (!document.storage_path) {
+            throw new Error("Document has no storage path");
+        }
+
+        const { data: fileBlob, error: downloadError } = await supabase
+            .storage
+            .from('project-files')
+            .download(document.storage_path);
+
+        if (downloadError || !fileBlob) {
+            throw new Error(`Failed to download file from storage: ${downloadError?.message}`);
+        }
+
+        // 3. Delete existing chunks (Start fresh)
+        const { error: chunkDeleteError } = await supabase
+            .from("document_chunks")
+            .delete()
+            .eq("document_id", documentId);
+        
+        if (chunkDeleteError) {
+            throw new Error(`Failed to clear existing chunks: ${chunkDeleteError.message}`);
+        }
+
+        // 4. Run Extraction Pipeline (Gemini)
         const client = getGeminiClient();
         const arrayBuffer = await fileBlob.arrayBuffer();
         
@@ -232,7 +183,7 @@ export async function reprocessDocumentService(documentId: string) {
         const geminiKey = process.env.GEMINI_API_KEY;
 
         if (!supabaseUrl || !supabaseKey || !geminiKey) {
-             throw new Error("Missing server configuration for vector processing");
+                throw new Error("Missing server configuration for vector processing");
         }
 
         const vectorService = new VectorstoreService(supabaseUrl, supabaseKey, geminiKey);
@@ -241,28 +192,68 @@ export async function reprocessDocumentService(documentId: string) {
         const content = await vectorService.extractTextFromFile(uploadResult.uri, document.mime_type || 'application/pdf');
 
         // Chunk & Embed
-        const chunks = vectorService.splitTextIntoChunks(content, 1000);
+        // Use recursive splitting with 1000 char chunks and 200 char overlap
+        const chunks = vectorService.splitTextIntoChunks(content, 1000, 200);
         console.log(`Reprocessed: Generated ${chunks.length} chunks`);
 
-        for (const chunkText of chunks) {
-            const embedding = await vectorService.generateEmbedding(chunkText);
+        const chunkDataArray = [];
+        
+        // Generate embeddings in batches to improve speed but avoid rate limits
+        // Batch size of 10 parallel requests
+        const BATCH_SIZE = 10;
+        for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+            const batch = chunks.slice(i, i + BATCH_SIZE);
+            console.log(`Processing batch ${i / BATCH_SIZE + 1}/${Math.ceil(chunks.length / BATCH_SIZE)}`);
             
-            await supabase.from("document_chunks")
-                .insert({
-                    document_id: document.id,
-                    content: chunkText,
-                    embedding: embedding,
-                    token_count: chunkText.length / 4
-                });
+            const batchPromises = batch.map(async (chunkText, batchIndex) => {
+                try {
+                    const embedding = await vectorService.generateEmbedding(chunkText);
+                    return {
+                        document_id: document.id,
+                        chunk_index: i + batchIndex,
+                        content: chunkText,
+                        embedding: embedding,
+                        token_count: Math.ceil(chunkText.length / 4)
+                    };
+                } catch (e) {
+                    console.error(`Failed to embed chunk ${i + batchIndex}`, e);
+                    return null;
+                }
+            });
+
+            const batchResults = await Promise.all(batchPromises);
+            // Filter out failures
+            const validResults = batchResults.filter(r => r !== null);
+            chunkDataArray.push(...validResults);
+        }
+
+        if (chunkDataArray.length === 0) {
+            throw new Error("Failed to generate any embeddings");
+        }
+
+        // Batch insert chunks (Supabase handles large batches well, but let's be safe and chunk inserts too if huge)
+        // 300 rows is fine for single insert usually.
+        const { error: insertError, count } = await supabase.from("document_chunks")
+            .insert(chunkDataArray); // Using default client configuration
+        
+        console.log(`Inserted ${chunkDataArray.length} chunks into DB. Error:`, insertError);
+
+        if (insertError) {
+             throw new Error(`Failed to insert chunks: ${insertError.message}`);
         }
 
         // Cleanup Google File
         try { await client.files.delete({ name: uploadResult.name! }); } catch {}
 
+        // Set status to Embedded
+        await supabase.from("documents").update({ status: 'embedded' }).eq('id', documentId);
+
         return { success: true, chunkCount: chunks.length };
 
     } catch (error: any) {
         console.error("Reprocessing failed:", error);
+        // Set status to Error
+        await supabase.from("documents").update({ status: 'error' }).eq('id', documentId);
         throw new Error(`Reprocessing failed: ${error.message}`);
     }
 }
