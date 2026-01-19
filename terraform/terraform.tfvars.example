@@ -1,0 +1,14 @@
+# Google Cloud Project Configuration
+# Kopiere diese Datei zu terraform.tfvars und fülle die Werte aus
+
+project_id  = "dein-projekt-id"
+region      = "europe-west3" # Frankfurt (EU, DSGVO-konform)
+environment = "prod"
+
+# Bucket Name muss global eindeutig sein!
+# Tipp: Nutze Format: chatbot-docs-{projekt-id}-{env}
+bucket_name = "chatbot-docs-DEIN-PROJEKT-prod-eu"
+
+# Optional: Anpassungen
+# service_account_name    = "chatbot-backend"
+# document_retention_days = 90

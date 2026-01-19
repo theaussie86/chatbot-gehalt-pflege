@@ -1,0 +1,36 @@
+# Terraform State Files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform Directory
+.terraform/
+.terraform.lock.hcl
+
+# Variable Files (enthalten sensible Daten)
+terraform.tfvars
+*.tfvars
+!terraform.tfvars.example
+
+# Credentials
+*.json
+service-account.json
+terraform-key.json
+
+# Backup Files
+*.backup
+backup-*.tfstate
+
+# Crash Logs
+crash.log
+crash.*.log
+
+# Override Files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI Config
+.terraformrc
+terraform.rc

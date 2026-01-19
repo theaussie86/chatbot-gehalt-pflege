@@ -36,3 +36,10 @@ pnpm-debug.log*
 # Monorepo
 .turbo
 .vercel
+
+# Google Cloud / Terraform Credentials
+service-account.json
+*-key.json
+terraform-key.json
+*.tfvars
+!terraform.tfvars.example
