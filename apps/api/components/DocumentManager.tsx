@@ -113,18 +113,11 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
             const { reprocessDocumentAction } = await import('@/app/actions/documents');
             const toastId = toast.loading("Triggering reprocessing...");
             try {
-                // Call reprocess which now updates status to 'processing' and runs logic
-                // We should await it if we want to wait for completion, but for 'processing' status check
-                // we might just want to kick it off.
-                // However, reprocessDocumentAction awaits reprocessDocumentService which awaits everything.
-                // If we want it to be background, the Action should return or we assume it's fast enough 
-                // OR we accept waiting. 
-                // Given the user wants "status", let's wait for the result here so we know if it *started* ok.
                 const res = await reprocessDocumentAction(documentId);
                 if (res.error) {
                     toast.error(`Reprocessing failed: ${res.error}`, { id: toastId });
                 } else {
-                    toast.success(`Broadcasting done. Generated ${res.count} chunks.`, { id: toastId });
+                    toast.success("Reprocessing triggered successfully.", { id: toastId });
                     router.refresh();
                 }
             } catch (e: any) {
@@ -195,7 +188,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                             </Badge>
                                         </div>
                                         <div className="flex gap-2 items-center mt-1">
-                                            <p className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString()}</p>
+                                            <p suppressHydrationWarning className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString()}</p>
                                             {!projectId && doc.project_id && (
                                                 <span className="text-xs bg-blue-100 text-blue-800 px-1.5 rounded">Project: {doc.project_id}</span>
                                             )}

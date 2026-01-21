@@ -99,12 +99,17 @@ export async function reprocessDocumentAction(documentId: string) {
     }
 
     try {
-        const { reprocessDocumentService } = await import('@/utils/documents');
-        const result = await reprocessDocumentService(documentId);
+        // Reset status to 'pending' to trigger the edge function (or whatever mechanism listens for new/pending docs)
+        const { error } = await supabase
+            .from("documents")
+            .update({ status: 'pending' })
+            .eq("id", documentId);
+
+        if (error) throw error;
         
         revalidatePath('/documents');
         revalidatePath('/admin/documents');
-        return { success: true, count: result.chunkCount };
+        return { success: true };
     } catch (error: any) {
         console.error("Reprocess action failed:", error);
         return { error: error.message };
