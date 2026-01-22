@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { VectorstoreService } from '../../lib/vectorstore/VectorstoreService';
+import { getGeminiClient } from '../../lib/gemini';
 
 export interface ValidationResult {
   valid: boolean;
@@ -21,8 +22,8 @@ export class ResponseValidator {
   private genAI: GoogleGenAI;
   private vectorstore: VectorstoreService;
 
-  constructor(apiKey: string, vectorstore: VectorstoreService) {
-    this.genAI = new GoogleGenAI({ apiKey });
+  constructor(vectorstore: VectorstoreService) {
+    this.genAI = getGeminiClient();
     this.vectorstore = vectorstore;
   }
 
@@ -170,7 +171,7 @@ Respond with JSON only:
 `;
 
       const result = await this.genAI.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });

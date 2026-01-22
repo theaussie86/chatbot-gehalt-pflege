@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import type { FormState } from '../../types/form';
+import { getGeminiClient } from '../../lib/gemini';
 
 export type UserIntent =
   | 'data_provision'      // User is providing requested data
@@ -17,8 +18,8 @@ export interface IntentAnalysis {
 export class ConversationAnalyzer {
   private genAI: GoogleGenAI;
 
-  constructor(apiKey: string) {
-    this.genAI = new GoogleGenAI({ apiKey });
+  constructor() {
+    this.genAI = getGeminiClient();
   }
 
   /**
@@ -141,7 +142,7 @@ Respond with JSON only:
 `;
 
       const result = await this.genAI.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });

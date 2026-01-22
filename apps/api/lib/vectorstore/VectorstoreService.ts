@@ -1,14 +1,15 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { GoogleGenAI } from '@google/genai';
+import { getGeminiClient } from '../gemini';
 
 export class VectorstoreService {
   private supabase: SupabaseClient;
   private genAI: GoogleGenAI;
   private cache: Map<string, { answer: string; timestamp: number }>;
 
-  constructor(supabaseUrl: string, supabaseKey: string, geminiApiKey: string) {
+  constructor(supabaseUrl: string, supabaseKey: string) {
     this.supabase = createClient(supabaseUrl, supabaseKey);
-    this.genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+    this.genAI = getGeminiClient();
     this.cache = new Map();
   }
 

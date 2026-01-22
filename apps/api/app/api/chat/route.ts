@@ -70,7 +70,6 @@ export async function POST(request: Request) {
 
         // 2. Domain Whitelisting / Origin Check & Custom Key Fetching
         
-        let customGeminiApiKey = null;
         let fileContextMessages: Content[] = [];
 
         if (activeProjectId !== process.env.GEMINI_API_KEY && activeProjectId !== 'DEMO') {
@@ -88,7 +87,6 @@ export async function POST(request: Request) {
             }
 
             const allowedOrigins = project.allowed_origins || [];
-            customGeminiApiKey = project.gemini_api_key;
             
             if (origin && !allowedOrigins.includes(origin)) {
                  return NextResponse.json(
@@ -127,33 +125,23 @@ export async function POST(request: Request) {
         
         // --- END SECURITY CHECKS ---
 
-        const finalGeminiApiKey = customGeminiApiKey || process.env.GEMINI_API_KEY;
-
-        if (!finalGeminiApiKey) {
-             return NextResponse.json(
-                { error: "Server Configuration Error: No Gemini API Key available." },
-                { status: 500 }
-            );
-        }
-
         // --- HYBRID STATE MACHINE LOGIC ---
         const { currentFormState } = body as { currentFormState?: FormState };
         if (currentFormState) {
             const { getGeminiClient } = await import("../../../lib/gemini");
             const { SalaryStateMachine } = await import("../../../lib/salary-flow");
-            const client = getGeminiClient(finalGeminiApiKey);
+            const client = getGeminiClient();
 
             // Deep clone to avoid mutation
             let nextFormState: FormState = JSON.parse(JSON.stringify(currentFormState));
 
             // Initialize services
-            const conversationAnalyzer = new ConversationAnalyzer(finalGeminiApiKey);
+            const conversationAnalyzer = new ConversationAnalyzer();
             const vectorstore = new VectorstoreService(
                 process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.SUPABASE_SERVICE_KEY!,
-                finalGeminiApiKey
+                process.env.SUPABASE_SERVICE_KEY!
             );
-            const responseValidator = new ResponseValidator(finalGeminiApiKey, vectorstore);
+            const responseValidator = new ResponseValidator(vectorstore);
 
             // --- US-019: UPDATE CONVERSATION CONTEXT ---
             if (!nextFormState.conversationContext) {
@@ -199,7 +187,7 @@ export async function POST(request: Request) {
                     Halte dich kurz.
                 `;
                 const responseResult = await client.models.generateContent({
-                    model: 'gemini-2.0-flash-exp',
+                    model: 'gemini-2.5-flash',
                     contents: responsePrompt
                 });
                 const responseText = responseResult.text || '';
@@ -238,7 +226,7 @@ export async function POST(request: Request) {
                 `;
 
                 const responseResult = await client.models.generateContent({
-                    model: 'gemini-2.0-flash-exp',
+                    model: 'gemini-2.5-flash',
                     contents: questionPrompt
                 });
                 let responseText = responseResult.text || '';
@@ -265,7 +253,7 @@ export async function POST(request: Request) {
                         Erkläre kurz, dass noch Informationen fehlen und frage danach.
                     `;
                     const responseResult = await client.models.generateContent({
-                        model: 'gemini-2.0-flash-exp',
+                        model: 'gemini-2.5-flash',
                         contents: errorPrompt
                     });
                     return NextResponse.json({
@@ -377,7 +365,7 @@ export async function POST(request: Request) {
                         Entschuldige dich höflich und bitte den Nutzer, die Daten zu überprüfen.
                     `;
                     const responseResult = await client.models.generateContent({
-                        model: 'gemini-2.0-flash-exp',
+                        model: 'gemini-2.5-flash',
                         contents: errorPrompt
                     });
                     return NextResponse.json({
@@ -412,7 +400,7 @@ export async function POST(request: Request) {
 
                 try {
                     const modResult = await client.models.generateContent({
-                        model: 'gemini-2.0-flash-exp',
+                        model: 'gemini-2.5-flash',
                         contents: modificationPrompt,
                         config: { responseMimeType: 'application/json' }
                     });
@@ -473,7 +461,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                     Frage höflich nach, welchen Wert der Nutzer ändern möchte.
                 `;
                 const responseResult = await client.models.generateContent({
-                    model: 'gemini-2.0-flash-exp',
+                    model: 'gemini-2.5-flash',
                     contents: clarifyPrompt
                 });
                 return NextResponse.json({
@@ -511,7 +499,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
 
                 try {
                     const result = await client.models.generateContent({
-                        model: 'gemini-2.0-flash-exp',
+                        model: 'gemini-2.5-flash',
                         contents: extractPrompt,
                         config: { responseMimeType: 'application/json' }
                     });
@@ -570,7 +558,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                 `;
 
                 const responseResult = await client.models.generateContent({
-                    model: 'gemini-2.0-flash-exp',
+                    model: 'gemini-2.5-flash',
                     contents: clarifyPrompt
                 });
                 return NextResponse.json({
@@ -613,7 +601,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
             );
 
             const responseResult = await client.models.generateContent({
-                 model: 'gemini-2.0-flash-exp',
+                 model: 'gemini-2.5-flash',
                  contents: userFriendlyPrompt
             });
             let responseText = responseResult.text || '';
@@ -630,7 +618,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
         }
 
         // --- AGENT EXECUTION (Legacy / Standard Chat) ---
-        const agent = new GeminiAgent(finalGeminiApiKey);
+        const agent = new GeminiAgent();
         
         const responseText = await agent.sendMessage(
             message, 

@@ -38,3 +38,7 @@ pnpm-debug.log*
 .vercel
 
 apps/api/tsconfig.tsbuildinfo
+
+# GCP Service Account Keys
+vertex-ai-key.json
+*.json.key

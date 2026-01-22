@@ -2,16 +2,14 @@ import { GoogleGenAI, Content } from "@google/genai";
 import { TaxWrapper, SalaryInput } from "../tax";
 import { SALARY_TOOL, SYSTEM_INSTRUCTION } from "./config";
 import { AgentMessage } from "./types";
+import { getGeminiClient } from "../../lib/gemini";
 
 export class GeminiAgent {
     private client: GoogleGenAI;
     private taxWrapper: TaxWrapper;
 
-    constructor(apiKey: string) {
-        if (!apiKey) {
-            throw new Error("Gemini API Key is required");
-        }
-        this.client = new GoogleGenAI({ apiKey });
+    constructor() {
+        this.client = getGeminiClient();
         this.taxWrapper = new TaxWrapper();
     }
 
@@ -53,7 +51,7 @@ export class GeminiAgent {
         }
 
         const chat = this.client.chats.create({
-            model: "gemini-2.0-flash",
+            model: "gemini-2.5-flash",
             // Config structure varies by SDK version
             config: {
                 systemInstruction: dynamicSystemInstruction,
