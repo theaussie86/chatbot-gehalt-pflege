@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { deleteDocumentService, uploadDocumentService } from "@/utils/documents";
+import { deleteDocumentService, uploadDocumentService, DocumentUploadError } from "@/utils/documents";
 import { revalidatePath } from "next/cache";
 
 export async function uploadDocumentAction(formData: FormData) {
@@ -32,7 +32,21 @@ export async function uploadDocumentAction(formData: FormData) {
         return { success: true };
     } catch (error: any) {
         console.error("Upload Action Error", error);
-        return { error: error.message };
+
+        // Handle structured DocumentUploadError
+        if (error instanceof DocumentUploadError) {
+            return {
+                error: error.message,
+                code: error.code,
+                rolledBack: error.rolledBack
+            };
+        }
+
+        // Handle generic errors
+        return {
+            error: error.message || "Unknown error occurred",
+            code: "ERR_UNKNOWN"
+        };
     }
 }
 

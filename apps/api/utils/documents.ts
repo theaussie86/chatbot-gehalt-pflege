@@ -1,13 +1,59 @@
 import { createClient } from "@/utils/supabase/server";
 
+// Custom error class for upload errors with structured data
+export class DocumentUploadError extends Error {
+    constructor(
+        public code: string,
+        message: string,
+        public rolledBack: boolean = false
+    ) {
+        super(message);
+        this.name = 'DocumentUploadError';
+    }
+}
+
+// Error codes
+export const ERROR_CODES = {
+    SIZE_LIMIT: 'ERR_SIZE_LIMIT',
+    INVALID_TYPE: 'ERR_INVALID_TYPE',
+    STORAGE: 'ERR_STORAGE',
+    DATABASE: 'ERR_DATABASE',
+} as const;
+
+// Constants
+const MAX_FILE_SIZE = 52428800; // 50MB in bytes
+const ALLOWED_MIME_TYPES = [
+    'application/pdf',
+    'text/plain',
+    'text/csv',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+    'application/vnd.ms-excel', // xls
+];
+
 export async function uploadDocumentService(
-    file: File | Blob, 
-    fileName: string, 
+    file: File | Blob,
+    fileName: string,
     mimeType: string,
     projectId: string | null,
     userId: string
 ) {
     const supabase = await createClient(); // Note: This uses cookies from the request context
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+        throw new DocumentUploadError(
+            ERROR_CODES.SIZE_LIMIT,
+            `File size exceeds 50MB limit. File size: ${(file.size / 1048576).toFixed(2)}MB`
+        );
+    }
+
+    // Validate MIME type
+    if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+        throw new DocumentUploadError(
+            ERROR_CODES.INVALID_TYPE,
+            `Invalid file type: ${mimeType}. Allowed types: PDF, TXT, CSV, XLS, XLSX`
+        );
+    }
 
     // 1. Upload to Supabase Storage
     // Use 'global' folder if no projectId, otherwise projectId folder
@@ -22,7 +68,10 @@ export async function uploadDocumentService(
         });
 
     if (storageError) {
-        throw new Error(`Storage upload failed: ${storageError.message}`);
+        throw new DocumentUploadError(
+            ERROR_CODES.STORAGE,
+            `Storage upload failed: ${storageError.message}`
+        );
     }
 
     // 2. Save to DB (Parent Document)
@@ -42,9 +91,28 @@ export async function uploadDocumentService(
 
     if (dbError) {
         console.error("DB Insert Error:", dbError);
-        // Clean up storage if DB insert fails
-        await supabase.storage.from('project-files').remove([storagePath]);
-        throw new Error(`Database error: ${dbError.message}`);
+
+        // Clean up storage if DB insert fails (rollback)
+        console.log(`Attempting rollback: removing storage file at ${storagePath}`);
+        try {
+            const { error: removeError } = await supabase.storage
+                .from('project-files')
+                .remove([storagePath]);
+
+            if (removeError) {
+                console.error("Rollback failed - could not remove storage file:", removeError);
+            } else {
+                console.log("Rollback successful - storage file removed");
+            }
+        } catch (rollbackError) {
+            console.error("Rollback exception:", rollbackError);
+        }
+
+        throw new DocumentUploadError(
+            ERROR_CODES.DATABASE,
+            `Database error: ${dbError.message}`,
+            true // rolledBack flag
+        );
     }
 
     // 3. Trigger Extraction Process (Background)
