@@ -23,7 +23,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 | Phase | Status | Plans | Progress |
 |-------|--------|-------|----------|
 | 1 | ✓ Complete | 1/1 | 100% |
-| 2 | ○ Pending | 0/0 | 0% |
+| 2 | ○ Pending | 0/3 | 0% |
 | 3 | ○ Pending | 0/0 | 0% |
 | 4 | ○ Pending | 0/0 | 0% |
 | 5 | ○ Pending | 0/0 | 0% |
@@ -67,6 +67,13 @@ Plans:
 - **FILE-03**: Admin can download document via time-limited signed URL
 - **ERR-02**: Upload failure rolls back: if DB insert fails, storage file is deleted
 - **ERR-03**: Delete failure is atomic: storage and DB deletion succeed together or both fail
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md - Upload service with drag-drop UI, validation, and rollback visibility
+- [ ] 02-02-PLAN.md - Atomic delete (DB-first) and 5-minute signed URL downloads
+- [ ] 02-03-PLAN.md - Human verification of complete file operations workflow
 
 **Success Criteria:**
 1. User can upload a PDF and see it appear in the documents list
