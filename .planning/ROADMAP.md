@@ -22,7 +22,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 
 | Phase | Status | Plans | Progress |
 |-------|--------|-------|----------|
-| 1 | ○ Pending | 0/0 | 0% |
+| 1 | ○ Planned | 0/1 | 0% |
 | 2 | ○ Pending | 0/0 | 0% |
 | 3 | ○ Pending | 0/0 | 0% |
 | 4 | ○ Pending | 0/0 | 0% |
@@ -38,12 +38,17 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 **Requirements:**
 - **DB-01**: Deleting a document cascades to delete all associated chunks
 - **DB-02**: RLS policies allow service role to insert into document_chunks
-- **DB-03**: Documents table has error_message column for storing failure details
+- **DB-03**: Documents table has error_details JSONB column for storing failure details
+
+**Plans:** 1 plan
+
+Plans:
+- [ ] 01-01-PLAN.md - Fix RLS policies, add error_details column, verify cascade delete
 
 **Success Criteria:**
 1. Service role can insert into document_chunks table (verified via SQL console)
 2. Deleting a document automatically removes all associated chunks (verified via foreign key cascade)
-3. Documents table has error_message TEXT column (verified via schema inspection)
+3. Documents table has error_details JSONB column (verified via schema inspection)
 4. Storage bucket project-files exists with proper access policies (verified via Supabase dashboard)
 
 **Dependencies:** None (foundation phase)
@@ -70,7 +75,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 4. User can click download and receive a file via time-limited signed URL
 5. Delete interrupted (simulated) leaves database and storage in consistent state (both present or both absent)
 
-**Dependencies:** Phase 1 (requires schema with error_message column, RLS policies)
+**Dependencies:** Phase 1 (requires schema with error_details column, RLS policies)
 
 **Why this second:** Upload/delete services use dual-write pattern with compensating transactions. Research shows storage-database sync failures are common pitfall. This phase provides the foundation for all document operations before building async processing.
 
@@ -136,7 +141,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 2. Clicking reprocess changes status back to "pending"
 3. Edge function re-executes and processes document again
 4. Successfully reprocessed document transitions from error → pending → processing → embedded
-5. Reprocess action clears old error_message before retry
+5. Reprocess action clears old error_details before retry
 
 **Dependencies:**
 - Phase 3 (requires status tracking UI)
@@ -188,13 +193,13 @@ All 16 v1 requirements mapped:
 | EDGE-04 | 4 | Edge Function Processing |
 | ERR-01 | 5 | Error Recovery |
 
-**No orphaned requirements.** ✓
+**No orphaned requirements.**
 
 ---
 
 ## Notes
 
-**Critical path:** Phases 1 → 2 → 4 → 6 are sequential (each depends on previous). Phase 3 can be built in parallel with Phase 4 webhook setup. Phase 5 requires both 3 and 4 complete.
+**Critical path:** Phases 1 -> 2 -> 4 -> 6 are sequential (each depends on previous). Phase 3 can be built in parallel with Phase 4 webhook setup. Phase 5 requires both 3 and 4 complete.
 
 **Research flags:** Phase 4 identified as complex (5-7 day estimate) due to multiple P0 bug fixes and Gemini API integration. Recommend `/gsd:research-phase 4` for retry strategies and error classification if issues arise during implementation.
 
@@ -206,7 +211,7 @@ All 16 v1 requirements mapped:
 - Research Phase 7 (Monitoring) deferred to v2 (monitoring happens naturally via status tracking in Phase 3)
 - Research Phase 8 (Optimization) deferred to v2
 
-This compression maintains natural delivery boundaries while hitting standard depth (6 phases ≈ 5-8 target).
+This compression maintains natural delivery boundaries while hitting standard depth (6 phases = 5-8 target).
 
 ---
 
