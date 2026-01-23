@@ -91,13 +91,16 @@ export async function getDocumentDownloadUrlAction(documentId: string) {
 
         const { data, error } = await supabase.storage
             .from('project-files')
-            .createSignedUrl(document.storage_path, 3600); // 1 hour
+            .createSignedUrl(document.storage_path, 300); // 5 minutes
 
         if (error) {
             throw new Error(`Storage error: ${error.message}`);
         }
 
-        return { url: data.signedUrl };
+        return {
+            url: data.signedUrl,
+            expiresAt: Date.now() + 300 * 1000 // 5 minutes from now
+        };
     } catch (error: any) {
         console.error("Download URL Action Error", error);
         return { error: error.message };
