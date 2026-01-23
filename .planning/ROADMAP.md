@@ -22,7 +22,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 
 | Phase | Status | Plans | Progress |
 |-------|--------|-------|----------|
-| 1 | ○ Planned | 0/1 | 0% |
+| 1 | ✓ Complete | 1/1 | 100% |
 | 2 | ○ Pending | 0/0 | 0% |
 | 3 | ○ Pending | 0/0 | 0% |
 | 4 | ○ Pending | 0/0 | 0% |
@@ -43,7 +43,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 **Plans:** 1 plan
 
 Plans:
-- [ ] 01-01-PLAN.md - Fix RLS policies, add error_details column, verify cascade delete
+- [x] 01-01-PLAN.md - Fix RLS policies, add error_details column, verify cascade delete
 
 **Success Criteria:**
 1. Service role can insert into document_chunks table (verified via SQL console)

@@ -34,9 +34,9 @@ Requirements for the document pipeline milestone. Each maps to roadmap phases.
 
 ### Database Integrity
 
-- [ ] **DB-01**: Deleting a document cascades to delete all associated chunks
-- [ ] **DB-02**: RLS policies allow service role to insert into document_chunks
-- [ ] **DB-03**: Documents table has error_message column for storing failure details
+- [x] **DB-01**: Deleting a document cascades to delete all associated chunks
+- [x] **DB-02**: RLS policies allow service role to insert into document_chunks
+- [x] **DB-03**: Documents table has error_details JSONB column for storing failure details
 
 ## v2 Requirements
 
@@ -78,9 +78,9 @@ Which phases cover which requirements. Updated after roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DB-01 | Phase 1 | Pending |
-| DB-02 | Phase 1 | Pending |
-| DB-03 | Phase 1 | Pending |
+| DB-01 | Phase 1 | Complete |
+| DB-02 | Phase 1 | Complete |
+| DB-03 | Phase 1 | Complete |
 | FILE-01 | Phase 2 | Pending |
 | FILE-02 | Phase 2 | Pending |
 | FILE-03 | Phase 2 | Pending |
