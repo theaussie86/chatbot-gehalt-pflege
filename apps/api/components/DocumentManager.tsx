@@ -27,6 +27,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge"; // Ensure this exists or use inline styles if not
 
+// Download icon component
+const DownloadIcon = ({ className }: { className?: string }) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+);
+
 interface Document {
     id: string;
     filename: string;
@@ -63,6 +71,9 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         type: 'delete' | 'reprocess';
         documentId: string;
     }>({ isOpen: false, type: 'delete', documentId: '' });
+
+    // URL cache with expiry tracking
+    const [urlCache, setUrlCache] = useState<Map<string, { url: string, expiresAt: number }>>(new Map());
 
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [feedbackText, setFeedbackText] = useState("");
@@ -259,13 +270,42 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         }
     };
 
+    // Handle view (open in new tab)
+    const handleView = async (doc: Document) => {
+        const cached = urlCache.get(doc.id);
+        if (cached && cached.expiresAt > Date.now()) {
+            window.open(cached.url, '_blank');
+            return;
+        }
+
+        const { getDocumentDownloadUrlAction } = await import('@/app/actions/documents');
+        const result = await getDocumentDownloadUrlAction(doc.id);
+        if (result.url) {
+            setUrlCache(prev => new Map(prev).set(doc.id, { url: result.url, expiresAt: result.expiresAt }));
+            window.open(result.url, '_blank');
+        } else if (result.error?.includes('expired')) {
+            toast.error('Link expired. Click to generate new link.', {
+                action: { label: 'Refresh', onClick: () => handleView(doc) }
+            });
+        } else {
+            toast.error(result.error || "Failed to get URL");
+        }
+    };
+
+    // Handle download (direct download with filename)
     const handleDownload = async (doc: Document) => {
         const { getDocumentDownloadUrlAction } = await import('@/app/actions/documents');
         const result = await getDocumentDownloadUrlAction(doc.id);
         if (result.url) {
-            window.open(result.url, '_blank');
+            // Create temporary link and trigger download
+            const link = document.createElement('a');
+            link.href = result.url;
+            link.download = doc.filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         } else {
-             toast.error(result.error || "Failed to get download URL");
+            toast.error(result.error || "Failed to get download URL");
         }
     };
     
@@ -315,7 +355,12 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                     </svg>
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <p className="font-medium text-gray-900 dark:text-gray-200">{doc.filename}</p>
+                                            <button
+                                                onClick={() => handleView(doc)}
+                                                className="font-medium text-gray-900 dark:text-gray-200 hover:text-blue-600 hover:underline text-left"
+                                            >
+                                                {doc.filename}
+                                            </button>
                                             <Badge className={getStatusColor(doc.status)} variant="secondary">
                                                 {doc.status || 'unknown'}
                                             </Badge>
@@ -329,18 +374,16 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                                 <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 rounded">Global</span>
                                             )}
                                         </div>
-                                        {/* Download Link */}
-                                        {doc.storage_path && (
-                                            <button
-                                                onClick={() => handleDownload(doc)}
-                                                className="text-xs text-blue-600 hover:text-blue-800 underline mt-1 block"
-                                            >
-                                                Download PDF
-                                            </button>
-                                        )}
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-2">
+                                    <button
+                                        onClick={() => handleDownload(doc)}
+                                        className="text-gray-400 hover:text-blue-600 p-1"
+                                        title="Download file"
+                                    >
+                                        <DownloadIcon className="w-5 h-5" />
+                                    </button>
                                     <button
                                         onClick={() => openReprocessConfirm(doc.id)}
                                         disabled={doc.status === 'processing'}
@@ -351,7 +394,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                         </svg>
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => openDeleteConfirm(doc.id)}
                                         className="text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
                                         title="Delete Document"
@@ -488,8 +531,8 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            {confirmState.type === 'delete' 
-                                ? "This action cannot be undone. This will permanently delete the document."
+                            {confirmState.type === 'delete'
+                                ? `Delete "${documents.find(d => d.id === confirmState.documentId)?.filename}"? This will remove the file and all embeddings. This action cannot be undone.`
                                 : "This will clear all existing embeddings for this document and regenerate them. This process might take a while."
                             }
                         </AlertDialogDescription>
