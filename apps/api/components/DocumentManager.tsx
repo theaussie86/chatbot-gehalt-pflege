@@ -55,6 +55,9 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
     // Drag-drop state
     const [isDragActive, setIsDragActive] = useState(false);
 
+    // Failed files tracking for retry
+    const [failedFiles, setFailedFiles] = useState<File[]>([]);
+
     const [confirmState, setConfirmState] = useState<{
         isOpen: boolean;
         type: 'delete' | 'reprocess';
@@ -99,6 +102,58 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         document.getElementById('file-input')?.click();
     };
 
+    // Retry upload for a single file
+    async function retryUpload(file: File) {
+        const singleFormData = new FormData();
+        singleFormData.append('file', file);
+        if (projectId) {
+            singleFormData.append('projectId', projectId);
+        }
+
+        const toastId = toast.loading(`Retrying ${file.name}...`);
+        const result = await uploadDocumentAction(singleFormData);
+
+        if (result.error) {
+            showErrorToast(file, result, toastId);
+        } else {
+            toast.success(`${file.name} uploaded successfully`, { id: toastId });
+            // Remove from failed files
+            setFailedFiles(prev => prev.filter(f => f !== file));
+            router.refresh();
+        }
+    }
+
+    // Retry all failed uploads
+    async function retryAllFailed() {
+        const filesToRetry = [...failedFiles];
+        setFailedFiles([]);
+
+        for (const file of filesToRetry) {
+            await retryUpload(file);
+        }
+    }
+
+    // Show error toast with rollback message and retry button
+    function showErrorToast(file: File, result: any, existingToastId?: string | number) {
+        const toastId = existingToastId || toast.loading('Upload failed. Cleaning up...');
+
+        // Brief delay to show cleanup message (rollback already happened server-side)
+        setTimeout(() => {
+            const errorMessage = result.rolledBack
+                ? `${result.error} (${result.code}). File removed.`
+                : `${result.error} (${result.code})`;
+
+            toast.error(errorMessage, {
+                id: toastId,
+                action: {
+                    label: 'Retry',
+                    onClick: () => retryUpload(file)
+                },
+                duration: 10000
+            });
+        }, 500);
+    }
+
     // Process multiple files sequentially
     async function processFiles(files: File[]) {
         setIsUploading(true);
@@ -107,6 +162,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         setCompletedFiles(0);
 
         let successCount = 0;
+        const newFailedFiles: File[] = [];
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
@@ -122,7 +178,8 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
             const result = await uploadDocumentAction(singleFormData);
 
             if (result.error) {
-                toast.error(`Failed to upload ${file.name}: ${result.error}`);
+                newFailedFiles.push(file);
+                showErrorToast(file, result);
             } else {
                 successCount++;
             }
@@ -134,6 +191,9 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
             toast.success(`${successCount} of ${files.length} document(s) uploaded successfully`);
             router.refresh();
         }
+
+        // Update failed files list
+        setFailedFiles(prev => [...prev, ...newFailedFiles]);
 
         // Reset state
         setIsUploading(false);
@@ -309,6 +369,45 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
 
             <div className="border-t pt-4 dark:border-gray-700">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Upload Documents</h3>
+
+                {/* Failed files summary */}
+                {failedFiles.length > 0 && (
+                    <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-sm text-red-700 dark:text-red-300">
+                                    {failedFiles.length} file(s) failed to upload
+                                </span>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={retryAllFailed}
+                                    className="text-red-700 border-red-300 hover:bg-red-100 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-900/30"
+                                >
+                                    Retry All
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setFailedFiles([])}
+                                    className="text-gray-600 dark:text-gray-400"
+                                >
+                                    Dismiss
+                                </Button>
+                            </div>
+                        </div>
+                        <ul className="mt-2 ml-7 text-xs text-red-600 dark:text-red-400 space-y-1">
+                            {failedFiles.map((file, idx) => (
+                                <li key={idx}>{file.name}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
 
                 {/* Drag-drop zone */}
                 <div
