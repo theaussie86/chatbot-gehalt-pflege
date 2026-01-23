@@ -2,8 +2,8 @@
 
 **Project:** Gehalt-Pflege Document Pipeline
 **Current Phase:** 1
-**Current Plan:** None
-**Status:** Not Started
+**Current Plan:** 01
+**Status:** In Progress
 
 ## Project Reference
 
@@ -21,14 +21,16 @@ Fixing P0-blocking RLS policies and schema issues that prevent edge function fro
 
 **Goal:** Database schema and storage bucket are correctly configured with secure RLS policies that allow the edge function to insert chunks.
 
-**Next action:** Run `/gsd:plan-phase 1` to break down database schema fixes and RLS policy updates into executable plans.
+**Last activity:** 2026-01-23 - Completed 01-01-PLAN.md (Database Foundation Migration)
+
+**Next action:** Apply migration 20260123000000_phase1_foundation.sql in Supabase, then run verification script.
 
 ## Progress
 
 ```
 [████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 16.7% (1/6 phases)
 
-Phase 1: Database & Storage Foundation ........ ○ Pending | 0/0 plans
+Phase 1: Database & Storage Foundation ........ ● In Progress | 1/1 plans
 Phase 2: Atomic File Operations ............... ○ Pending | 0/0 plans
 Phase 3: Status & Error Tracking .............. ○ Pending | 0/0 plans
 Phase 4: Edge Function Processing ............. ○ Pending | 0/0 plans
@@ -38,7 +40,7 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 
 | Phase | Status | Plans | Requirements | Progress |
 |-------|--------|-------|--------------|----------|
-| 1 | ○ Pending | 0/0 | 3 (DB-01, DB-02, DB-03) | 0% |
+| 1 | ● In Progress | 1/1 | 3 (DB-01, DB-02, DB-03) | 100% |
 | 2 | ○ Pending | 0/0 | 5 (FILE-01, FILE-02, FILE-03, ERR-02, ERR-03) | 0% |
 | 3 | ○ Pending | 0/0 | 3 (STAT-01, STAT-02, STAT-03) | 0% |
 | 4 | ○ Pending | 0/0 | 4 (EDGE-01, EDGE-02, EDGE-03, EDGE-04) | 0% |
@@ -47,9 +49,9 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 
 ## Performance Metrics
 
-**Velocity:** N/A (no plans executed yet)
-**Quality:** N/A (no plans verified yet)
-**Milestone progress:** 0/6 phases complete (0%)
+**Velocity:** 1.7 minutes per plan (1 plan in 1.7 minutes)
+**Quality:** 100% (1/1 plans completed successfully)
+**Milestone progress:** 1/6 phases complete (16.7%)
 
 ## Accumulated Context
 
@@ -73,13 +75,16 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 | Fix foundation before features | Cannot build on broken RLS/schema; P0 bugs block all downstream work | 2026-01-23 |
 | 6-phase structure (compressed from research 8) | Combine webhook setup into edge function phase, defer monitoring to v2 | 2026-01-23 |
 | Phase 3 parallelizable with Phase 4 | UI/status tracking doesn't depend on edge function working | 2026-01-23 |
+| Service role policy via JWT claim | Edge function uses service role key which has NULL auth.uid(), so use auth.jwt()->>'role' = 'service_role' check instead | 2026-01-23 |
+| JSONB for error_details | Flexible schema allows storing different error types without schema changes | 2026-01-23 |
+| Cascade delete requires no change | Already configured in 20260115120000_init_rag_pipeline.sql line 59 | 2026-01-23 |
 
 ### Active TODOs
 
-**Before Phase 1 planning:**
-- [ ] Audit existing RLS policies on documents and document_chunks tables
-- [ ] Verify schema has error_message column
-- [ ] Check foreign key cascade configuration
+**Phase 1 completion:**
+- [ ] Apply migration 20260123000000_phase1_foundation.sql in Supabase SQL Editor
+- [ ] Run verification queries from phase1_verification.sql to confirm fixes
+- [ ] Test edge function with real document upload to verify chunks are inserted
 
 **Deferred to later phases:**
 - Monitoring tools (stale document detection, processing duration metrics) - v2
@@ -88,7 +93,12 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 
 ### Blockers
 
-None currently. Phase 1 is ready to plan.
+**Phase 1 migration application:**
+- Migration file created but must be applied manually in Supabase SQL Editor
+- Not a code blocker, but requires admin action before edge function will work
+
+**Phase 2 readiness:**
+- No blockers - can proceed with file operation plans once Phase 1 migration is applied
 
 ### Open Questions
 
@@ -98,17 +108,22 @@ None currently. Phase 1 is ready to plan.
 
 ## Session Continuity
 
-**Last command:** `/gsd:new-project` (roadmap creation)
+**Last command:** `/gsd:execute-phase` for plan 01-01
 
-**Next command:** `/gsd:plan-phase 1`
+**Last session:** 2026-01-23 08:21:27 UTC
+
+**Stopped at:** Completed 01-01-PLAN.md
+
+**Resume file:** None
 
 **Context for next session:**
-- Roadmap complete with 6 phases, 16 requirements mapped
-- Phase 1 targets P0-blocking RLS and schema issues
-- Research identified root causes: service role NULL uid, embedding response structure, Blob MIME type
-- Ready to break down Phase 1 into executable plans
+- Phase 1 Plan 1 complete: Database foundation migration created
+- Migration files ready: 20260123000000_phase1_foundation.sql and phase1_verification.sql
+- All 3 Phase 1 requirements addressed: DB-01 (cascade delete verified), DB-02 (service role INSERT fixed), DB-03 (error_details column added)
+- Phase 1 complete pending migration application
+- Ready to proceed with Phase 2 planning (Atomic File Operations)
 
 ---
 
-*Last updated: 2026-01-23*
-*State initialized during roadmap creation*
+*Last updated: 2026-01-23 08:21:27 UTC*
+*Plan 01-01 executed successfully*
