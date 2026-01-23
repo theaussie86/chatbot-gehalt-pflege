@@ -124,12 +124,12 @@ export async function uploadDocumentService(
 
 export async function deleteDocumentService(documentId: string, userId: string) {
     const supabase = await createClient();
-    
-    // Fetch document
+
+    // 1. Fetch document (including storage_path)
     // RLS ensures we can only select if we are a member of the project
     const { data: document, error: fetchError } = await supabase
         .from("documents")
-        .select("*")
+        .select("id, storage_path")
         .eq("id", documentId)
         .single();
 
@@ -137,15 +137,9 @@ export async function deleteDocumentService(documentId: string, userId: string) 
         throw new Error("Document not found");
     }
 
-    // Removed manual user_id check as RLS handles it via project membership
-    
+    const storagePath = document.storage_path;
 
-    // Delete from Storage
-    if (document.storage_path) {
-        await supabase.storage.from('project-files').remove([document.storage_path]);
-    }
-
-    // Delete from DB
+    // 2. Delete from DB FIRST (cascade deletes chunks via FK)
     const { error: deleteError, count } = await supabase
         .from("documents")
         .delete({ count: 'exact' })
@@ -156,7 +150,26 @@ export async function deleteDocumentService(documentId: string, userId: string) 
     }
 
     if (count === 0) {
-        throw new Error("Failed to delete document: 0 rows deleted (Permission denied or not found)");
+        throw new Error("Failed to delete document: Permission denied or not found");
+    }
+
+    // 3. Delete from Storage AFTER DB success
+    // If this fails, we have orphaned storage file (acceptable - can clean up later)
+    // But we do NOT have orphaned DB record (critical - avoided)
+    if (storagePath) {
+        try {
+            const { error: storageError } = await supabase.storage
+                .from('project-files')
+                .remove([storagePath]);
+
+            if (storageError) {
+                console.warn(`Storage cleanup failed for ${storagePath}: ${storageError.message}`);
+                // Log but don't throw - DB record is already deleted
+            }
+        } catch (e) {
+            console.warn(`Storage cleanup exception for ${storagePath}:`, e);
+            // Log but don't throw
+        }
     }
 
     return true;
