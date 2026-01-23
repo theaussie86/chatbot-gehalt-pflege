@@ -47,6 +47,14 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
 
+    // Batch upload state
+    const [totalFiles, setTotalFiles] = useState(0);
+    const [completedFiles, setCompletedFiles] = useState(0);
+    const [currentFileName, setCurrentFileName] = useState('');
+
+    // Drag-drop state
+    const [isDragActive, setIsDragActive] = useState(false);
+
     const [confirmState, setConfirmState] = useState<{
         isOpen: boolean;
         type: 'delete' | 'reprocess';
@@ -56,37 +64,102 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [feedbackText, setFeedbackText] = useState("");
 
-    async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
+    // Drag handlers
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
+        e.stopPropagation();
+        setIsDragActive(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragActive(false);
+    };
+
+    const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragActive(false);
+
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) {
+            await processFiles(files);
+        }
+    };
+
+    const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length > 0) {
+            await processFiles(files);
+        }
+    };
+
+    const handleDropZoneClick = () => {
+        document.getElementById('file-input')?.click();
+    };
+
+    // Process multiple files sequentially
+    async function processFiles(files: File[]) {
         setIsUploading(true);
         setUploadError(null);
+        setTotalFiles(files.length);
+        setCompletedFiles(0);
 
-        const form = e.currentTarget;
-        const formData = new FormData(form);
-        
-        if (projectId) {
-            formData.append('projectId', projectId);
+        let successCount = 0;
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            setCurrentFileName(file.name);
+            setCompletedFiles(i);
+
+            const singleFormData = new FormData();
+            singleFormData.append('file', file);
+            if (projectId) {
+                singleFormData.append('projectId', projectId);
+            }
+
+            const result = await uploadDocumentAction(singleFormData);
+
+            if (result.error) {
+                toast.error(`Failed to upload ${file.name}: ${result.error}`);
+            } else {
+                successCount++;
+            }
         }
 
-        // Basic client-side validation
-        const file = formData.get('file') as File;
-        if (!file || file.size === 0) {
-            setUploadError("Please select a file.");
-            setIsUploading(false);
+        setCompletedFiles(files.length);
+
+        if (successCount > 0) {
+            toast.success(`${successCount} of ${files.length} document(s) uploaded successfully`);
+            router.refresh();
+        }
+
+        // Reset state
+        setIsUploading(false);
+        setTotalFiles(0);
+        setCompletedFiles(0);
+        setCurrentFileName('');
+
+        // Reset file input
+        const fileInput = document.getElementById('file-input') as HTMLInputElement;
+        if (fileInput) {
+            fileInput.value = '';
+        }
+    }
+
+    async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const fileInput = form.elements.namedItem('file') as HTMLInputElement;
+        const files = Array.from(fileInput.files || []);
+
+        if (files.length === 0) {
+            setUploadError("Please select at least one file.");
             return;
         }
 
-        const result = await uploadDocumentAction(formData);
-
-        if (result.error) {
-           setUploadError(result.error);
-           toast.error(result.error);
-        } else {
-            form.reset();
-            toast.success("Document uploaded. Processing started in background.");
-            router.refresh(); // Refresh to see the new document in 'pending'/'processing' state
-        }
-        setIsUploading(false);
+        await processFiles(files);
     }
 
     const openDeleteConfirm = (docId: string) => {
@@ -235,33 +308,79 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
             </div>
 
             <div className="border-t pt-4 dark:border-gray-700">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Upload New Document (PDF)</h3>
-                <form onSubmit={handleUpload} className="flex gap-2 items-start">
-                     <div className="flex-1">
-                        <input 
-                            type="file" 
-                            name="file" 
-                            accept="application/pdf"
-                            required
-                            className="block w-full text-sm text-gray-500 dark:text-gray-300
-                                file:mr-4 file:py-2 file:px-4
-                                file:rounded-full file:border-0
-                                file:text-sm file:font-semibold
-                                file:bg-blue-50 file:text-blue-700
-                                hover:file:bg-blue-100
-                                dark:file:bg-gray-700 dark:file:text-white
-                            "
-                        />
-                         {uploadError && <p className="text-red-500 text-xs mt-1">{uploadError}</p>}
-                    </div>
-                    <button 
-                        type="submit" 
-                        disabled={isUploading}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                        {isUploading ? 'Uploading...' : 'Upload'}
-                    </button>
-                </form>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Upload Documents</h3>
+
+                {/* Drag-drop zone */}
+                <div
+                    onClick={handleDropZoneClick}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`
+                        relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
+                        transition-colors duration-200
+                        ${isDragActive
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500'
+                        }
+                        ${isUploading ? 'pointer-events-none opacity-75' : ''}
+                    `}
+                >
+                    {/* Hidden file input */}
+                    <input
+                        id="file-input"
+                        type="file"
+                        multiple
+                        accept="application/pdf,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                        onChange={handleFileInputChange}
+                        className="hidden"
+                    />
+
+                    {isUploading ? (
+                        <div className="space-y-3">
+                            <div className="text-blue-600 dark:text-blue-400 font-medium">
+                                Uploading {completedFiles + 1} of {totalFiles}: {currentFileName}
+                            </div>
+                            {/* Progress bar */}
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                                <div
+                                    className="bg-blue-600 h-2.5 transition-all duration-300"
+                                    style={{ width: `${(completedFiles / totalFiles) * 100}%` }}
+                                />
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                                {completedFiles} of {totalFiles} completed
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <svg
+                                className="mx-auto h-12 w-12 text-gray-400"
+                                stroke="currentColor"
+                                fill="none"
+                                viewBox="0 0 48 48"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                                    strokeWidth={2}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                />
+                            </svg>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                                <span className="font-semibold text-blue-600 dark:text-blue-400">Click to browse</span> or drag and drop
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                PDF, TXT, CSV, XLS, XLSX (max 50MB per file)
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {uploadError && (
+                    <p className="text-red-500 text-sm mt-2">{uploadError}</p>
+                )}
             </div>
 
             {/* Confirmation Dialog (Action) */}
