@@ -74,32 +74,40 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Which phases cover which requirements. Updated after roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FILE-01 | Phase 1 | Pending |
-| FILE-02 | Phase 1 | Pending |
-| FILE-03 | Phase 1 | Pending |
-| STAT-01 | Phase 1 | Pending |
-| STAT-02 | Phase 1 | Pending |
-| STAT-03 | Phase 1 | Pending |
-| ERR-01 | Phase 2 | Pending |
-| ERR-02 | Phase 1 | Pending |
-| ERR-03 | Phase 1 | Pending |
-| EDGE-01 | Phase 2 | Pending |
-| EDGE-02 | Phase 2 | Pending |
-| EDGE-03 | Phase 2 | Pending |
-| EDGE-04 | Phase 2 | Pending |
 | DB-01 | Phase 1 | Pending |
 | DB-02 | Phase 1 | Pending |
 | DB-03 | Phase 1 | Pending |
+| FILE-01 | Phase 2 | Pending |
+| FILE-02 | Phase 2 | Pending |
+| FILE-03 | Phase 2 | Pending |
+| ERR-02 | Phase 2 | Pending |
+| ERR-03 | Phase 2 | Pending |
+| STAT-01 | Phase 3 | Pending |
+| STAT-02 | Phase 3 | Pending |
+| STAT-03 | Phase 3 | Pending |
+| EDGE-01 | Phase 4 | Pending |
+| EDGE-02 | Phase 4 | Pending |
+| EDGE-03 | Phase 4 | Pending |
+| EDGE-04 | Phase 4 | Pending |
+| ERR-01 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 16 total
-- Mapped to phases: 16
+- Mapped to phases: 16/16 ✓
 - Unmapped: 0 ✓
+
+**Phase distribution:**
+- Phase 1 (Database & Storage Foundation): 3 requirements
+- Phase 2 (Atomic File Operations): 5 requirements
+- Phase 3 (Status & Error Tracking): 3 requirements
+- Phase 4 (Edge Function Processing): 4 requirements
+- Phase 5 (Error Recovery): 1 requirement
+- Phase 6 (RAG Integration): 0 requirements (integration phase)
 
 ---
 *Requirements defined: 2026-01-23*
-*Last updated: 2026-01-23 after initial definition*
+*Last updated: 2026-01-23 after roadmap creation*
