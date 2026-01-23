@@ -1,0 +1,105 @@
+# Requirements: Gehalt-Pflege Document Pipeline
+
+**Defined:** 2026-01-23
+**Core Value:** Documents uploaded by admins must reliably become searchable context for the chatbot
+
+## v1 Requirements
+
+Requirements for the document pipeline milestone. Each maps to roadmap phases.
+
+### File Operations
+
+- [ ] **FILE-01**: Admin can upload documents (PDF, text, spreadsheets) with size/type validation
+- [ ] **FILE-02**: Admin can delete document atomically (storage file + DB record + chunks removed together)
+- [ ] **FILE-03**: Admin can download document via time-limited signed URL
+
+### Status Tracking
+
+- [ ] **STAT-01**: Document status reflects pipeline state: pending → processing → embedded / error
+- [ ] **STAT-02**: Failed documents store error message explaining what went wrong
+- [ ] **STAT-03**: Admin UI displays document status with visual indicators
+
+### Error Recovery
+
+- [ ] **ERR-01**: Admin can reprocess failed documents (reset to pending, re-trigger pipeline)
+- [ ] **ERR-02**: Upload failure rolls back: if DB insert fails, storage file is deleted
+- [ ] **ERR-03**: Delete failure is atomic: storage and DB deletion succeed together or both fail
+
+### Edge Function Processing
+
+- [ ] **EDGE-01**: Edge function parses embedding API response defensively (handles structure variations)
+- [ ] **EDGE-02**: Batch embedding uses Promise.allSettled for partial failure tolerance
+- [ ] **EDGE-03**: Gemini uploaded files are cleaned up in finally block (even on error)
+- [ ] **EDGE-04**: Chunks are inserted into document_chunks table with correct embeddings
+
+### Database Integrity
+
+- [ ] **DB-01**: Deleting a document cascades to delete all associated chunks
+- [ ] **DB-02**: RLS policies allow service role to insert into document_chunks
+- [ ] **DB-03**: Documents table has error_message column for storing failure details
+
+## v2 Requirements
+
+Deferred to future release. Tracked but not in current roadmap.
+
+### Resilience
+
+- **RES-01**: Automatic retry with exponential backoff (3 attempts before marking error)
+- **RES-02**: Rate limiting between embedding batches to avoid API throttling
+- **RES-03**: Circuit breaker for Gemini API failures
+
+### Observability
+
+- **OBS-01**: Progress percentage tracking during processing
+- **OBS-02**: Processing duration metrics per document
+- **OBS-03**: Audit trail of document operations (upload, delete, reprocess)
+
+### Advanced Sync
+
+- **SYNC-01**: Orphan cleanup scheduler (find storage files without DB records)
+- **SYNC-02**: Batch upload with single progress indicator
+
+## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| File versioning | Adds complexity without clear need; users can delete and re-upload |
+| Format conversion | Gemini already handles PDF, DOCX, TXT natively |
+| Custom embedding models | text-embedding-004 is sufficient; adds testing surface |
+| Real-time progress websockets | Polling is acceptable for v1 |
+| Document expiry/TTL | No requirement; Pflege regulations may need long retention |
+| Cancel in-progress processing | High complexity; can reprocess instead |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| FILE-01 | Phase 1 | Pending |
+| FILE-02 | Phase 1 | Pending |
+| FILE-03 | Phase 1 | Pending |
+| STAT-01 | Phase 1 | Pending |
+| STAT-02 | Phase 1 | Pending |
+| STAT-03 | Phase 1 | Pending |
+| ERR-01 | Phase 2 | Pending |
+| ERR-02 | Phase 1 | Pending |
+| ERR-03 | Phase 1 | Pending |
+| EDGE-01 | Phase 2 | Pending |
+| EDGE-02 | Phase 2 | Pending |
+| EDGE-03 | Phase 2 | Pending |
+| EDGE-04 | Phase 2 | Pending |
+| DB-01 | Phase 1 | Pending |
+| DB-02 | Phase 1 | Pending |
+| DB-03 | Phase 1 | Pending |
+
+**Coverage:**
+- v1 requirements: 16 total
+- Mapped to phases: 16
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-01-23*
+*Last updated: 2026-01-23 after initial definition*
