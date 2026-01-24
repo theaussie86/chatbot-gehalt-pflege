@@ -1,9 +1,9 @@
 # Project State: Gehalt-Pflege Document Pipeline
 
 **Project:** Gehalt-Pflege Document Pipeline
-**Current Phase:** 3 (Complete)
-**Current Plan:** 03-03 (Complete)
-**Status:** Phase 3 Complete - Ready for Phase 4
+**Current Phase:** 4 (In Progress)
+**Current Plan:** 04-01 (Complete)
+**Status:** Phase 4 Plan 01 Complete
 
 ## Project Reference
 
@@ -11,27 +11,27 @@
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** Phase 3 - Status & Error Tracking (Plan 02 Complete)
+**Current focus:** Phase 4 - Edge Function Processing (Plan 01 Complete)
 
 ## Current Position
 
-**Phase 3 of 6:** Status & Error Tracking (Complete)
+**Phase 4 of 6:** Edge Function Processing (In Progress)
 
-**Goal:** Documents visibly reflect their pipeline state with status badges and filter chips for admin list management. ✓ ACHIEVED
+**Goal:** Edge function reliably processes documents into searchable chunks with proper error handling.
 
-**Last activity:** 2026-01-24 - Completed Phase 3 (all 3 plans complete)
+**Last activity:** 2026-01-24 - Completed 04-01-PLAN.md (bug fixes)
 
-**Next action:** Proceed to Phase 4 (Edge Function Processing)
+**Next action:** Continue to Plan 04-02 (if exists) or complete Phase 4
 
 ## Progress
 
 ```
-[████████████████████████████████░░░░░░░░░░░░░░░░] 50.0% (3/6 phases)
+[████████████████████████████████████░░░░░░░░░░░░] 54.5% (3/6 phases + 1 plan)
 
 Phase 1: Database & Storage Foundation ........ ✓ Complete | 1/1 plans
 Phase 2: Atomic File Operations ............... ✓ Complete | 3/3 plans
 Phase 3: Status & Error Tracking .............. ✓ Complete | 3/3 plans
-Phase 4: Edge Function Processing ............. ○ Pending | 0/? plans
+Phase 4: Edge Function Processing ............. ◐ In Progress | 1/? plans
 Phase 5: Error Recovery ....................... ○ Pending | 0/? plans
 Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 ```
@@ -41,7 +41,7 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 | 1 | ✓ Complete | 1/1 | 3 (DB-01✓, DB-02✓, DB-03✓) | 100% |
 | 2 | ✓ Complete | 3/3 | 5 (FILE-01✓, FILE-02✓, FILE-03✓, ERR-02✓, ERR-03✓) | 100% |
 | 3 | ✓ Complete | 3/3 | 3 (STAT-01✓, STAT-02✓, STAT-03✓) | 100% |
-| 4 | ○ Pending | 0/? | 4 (EDGE-01, EDGE-02, EDGE-03, EDGE-04) | 0% |
+| 4 | ◐ In Progress | 1/? | 4 (EDGE-01✓, EDGE-02, EDGE-03, EDGE-04) | 25% |
 | 5 | ○ Pending | 0/? | 1 (ERR-01) | 0% |
 | 6 | ○ Pending | 0/? | 0 (integration) | 0% |
 
@@ -52,13 +52,15 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 **P0-Blocking bugs identified in research:**
 1. RLS policies checking `auth.uid()` fail when service role has NULL uid - service role bypasses SELECT but INSERT policies with JOIN conditions fail silently
 2. Embedding API response structure: `embedResult.embeddings?.[0]?.values` may be undefined - need defensive parsing
-3. Blob MIME type: code uses `fileBlob.mime_type` but JavaScript Blob has `.type` property
+3. ~~Blob MIME type: code uses `fileBlob.mime_type` but JavaScript Blob has `.type` property~~ **FIXED in 04-01**
 
-**Current symptoms:**
+**Current symptoms (pre-04-01 fixes):**
 - Edge function triggers and authenticates successfully
 - Text extraction works
 - Chunks are NOT created in document_chunks table
 - No error messages visible in logs
+
+**Post 04-01:** Error details now captured with stage information. Ready to test end-to-end.
 
 ### Decisions
 
@@ -86,13 +88,16 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 | Set-based checkbox selection | Set<string> for O(1) toggle/has operations; efficient for large lists | 2026-01-24 |
 | Sequential bulk delete with per-item atomicity | Process documents one-by-one with individual success/failure tracking vs single transaction | 2026-01-24 |
 | Realtime enablement via migration | Documents table explicitly added to supabase_realtime publication for live updates | 2026-01-24 |
+| Store documentId at function scope | Variables declared before try block allow catch/finally blocks to access them | 2026-01-24 |
+| Finally block for Gemini cleanup | Guarantees file deletion runs regardless of success/failure | 2026-01-24 |
+| Fallback MIME type pattern | `fileBlob.type \|\| document.mime_type` ensures type is always available | 2026-01-24 |
 
 ### Active TODOs
 
 **Phase 1 complete:**
 - [x] Apply migration 20260123000000_phase1_foundation.sql in Supabase SQL Editor
 - [x] Run verification queries to confirm fixes
-- [ ] Test edge function with real document upload to verify chunks are inserted (can test during Phase 4)
+- [ ] Test edge function with real document upload to verify chunks are inserted (can test now with 04-01 fixes)
 
 **Phase 2 complete:**
 - [x] Upload validation (size, MIME type)
@@ -107,6 +112,11 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 - [x] Plan 02: Document details panel and realtime updates
 - [x] Plan 03: Checkbox selection and bulk delete with human verification
 
+**Phase 4 in progress:**
+- [x] Plan 01: Fix Blob MIME type, error handling, Gemini cleanup
+- [ ] Deploy updated edge function: `supabase functions deploy process-embeddings`
+- [ ] Remaining plans (04-02, 04-03, etc.)
+
 **Deferred to later phases:**
 - Monitoring tools (stale document detection, processing duration metrics) - v2
 - Optimization (progress tracking, rate limiting, orphan cleanup) - v2
@@ -114,7 +124,7 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 
 ### Blockers
 
-None. Phase 3 complete with all requirements verified. Ready for Phase 4 (Edge Function Processing).
+None. Plan 04-01 complete. Edge function needs deployment to test fixes.
 
 ### Open Questions
 
@@ -123,30 +133,26 @@ None. Phase 3 complete with all requirements verified. Ready for Phase 4 (Edge F
 
 ## Session Continuity
 
-**Last command:** `/gsd:execute-plan .planning/phases/03-status-error-tracking/03-03-PLAN.md`
+**Last command:** `/gsd:execute-plan 04-01`
 
 **Last session:** 2026-01-24
 
-**Stopped at:** Phase 3 Complete (all 3 plans executed and verified)
+**Stopped at:** Plan 04-01 Complete
 
 **Resume file:** None
 
 **Context for next session:**
-- **Phase 3 complete** - All status tracking features working and verified:
-  - Status badges with icons and muted colors
-  - Filter chips with counts and multi-select
-  - Document details side panel with error display
-  - Real-time updates via Supabase realtime (documents table enabled in publication)
-  - Checkbox selection with select-all and indeterminate state
-  - Bulk delete with confirmation dialog and success/failure reporting
-- **Human verification passed** - User confirmed all features work end-to-end
-- **Realtime fix applied** - Migration created to enable documents table in supabase_realtime publication
-- **Ready for Phase 4:** Edge Function Processing
-  - UI ready to display processing status live
-  - Error details panel ready for edge function errors
-  - Bulk operations available for managing documents
+- **Plan 04-01 complete** - Edge function bug fixes:
+  - Fixed Blob MIME type access (`fileBlob.type` not `.mime_type`)
+  - Stage tracking for granular error reporting
+  - Error handler uses pre-stored documentId (no re-parsing request)
+  - Gemini files cleaned up in finally block
+  - error_details JSONB populated with code, message, timestamp, stage
+- **Deployment needed:** Run `supabase functions deploy process-embeddings` to apply fixes
+- **Ready for testing:** Can now test document upload with error tracking visible in UI
+- **Continue with:** Plan 04-02 or subsequent plans in Phase 4
 
 ---
 
 *Last updated: 2026-01-24*
-*Phase 3 Plan 02 complete - Document details panel and realtime updates*
+*Plan 04-01 complete - Edge function bug fixes*
