@@ -25,6 +25,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -159,6 +166,116 @@ const FilterChips = ({
     );
 };
 
+// Document details panel component
+const DocumentDetailsPanel = ({
+    document,
+    onDownload,
+    onDelete,
+}: {
+    document: Document;
+    onDownload: () => void;
+    onDelete: () => void;
+}) => {
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    return (
+        <div className="space-y-6 py-4">
+            {/* Filename */}
+            <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 break-words">
+                    {document.filename}
+                </h3>
+            </div>
+
+            {/* Status */}
+            <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</p>
+                <StatusBadge status={document.status} />
+            </div>
+
+            {/* Upload Date */}
+            <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Uploaded</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {formatDate(document.created_at)}
+                </p>
+            </div>
+
+            {/* MIME Type */}
+            <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">File Type</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {document.mime_type}
+                </p>
+            </div>
+
+            {/* Project Association */}
+            <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Project</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {document.project_id || 'Global'}
+                </p>
+            </div>
+
+            {/* Error Details (only if status is error) */}
+            {document.status === 'error' && document.error_details && (
+                <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Error Details</p>
+                    <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg p-4 space-y-2">
+                        {document.error_details.message && (
+                            <p className="text-sm text-rose-700 dark:text-rose-300 font-medium">
+                                {document.error_details.message}
+                            </p>
+                        )}
+                        {document.error_details.code && (
+                            <p className="text-xs text-rose-600 dark:text-rose-400">
+                                <span className="font-medium">Code:</span> {document.error_details.code}
+                            </p>
+                        )}
+                        {document.error_details.stage && (
+                            <p className="text-xs text-rose-600 dark:text-rose-400">
+                                <span className="font-medium">Failed at:</span> {document.error_details.stage}
+                            </p>
+                        )}
+                        {document.error_details.timestamp && (
+                            <p className="text-xs text-rose-600 dark:text-rose-400">
+                                <span className="font-medium">Time:</span> {formatDate(document.error_details.timestamp)}
+                            </p>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="pt-4 border-t dark:border-gray-700 flex gap-2">
+                <Button
+                    onClick={onDownload}
+                    variant="outline"
+                    className="flex-1"
+                >
+                    Download
+                </Button>
+                <Button
+                    onClick={onDelete}
+                    variant="destructive"
+                    className="flex-1"
+                >
+                    Delete
+                </Button>
+            </div>
+        </div>
+    );
+};
+
 interface Document {
     id: string;
     filename: string;
@@ -167,6 +284,13 @@ interface Document {
     project_id?: string | null;
     storage_path?: string;
     status: 'pending' | 'processing' | 'embedded' | 'error';
+    error_details?: {
+        code?: string;
+        message?: string;
+        timestamp?: string;
+        stage?: string;
+        details?: any;
+    } | null;
 }
 
 interface DocumentManagerProps {
@@ -192,6 +316,9 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
 
     // Filter state
     const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+
+    // Selected document for details panel
+    const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
 
     const [confirmState, setConfirmState] = useState<{
         isOpen: boolean;
@@ -571,7 +698,11 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                         ) : (
                             <ul className="divide-y divide-gray-200 dark:divide-gray-700">
                                 {filteredDocuments.map(doc => (
-                            <li key={doc.id} className="py-3 flex justify-between items-center group">
+                            <li
+                                key={doc.id}
+                                onClick={() => setSelectedDocument(doc)}
+                                className="py-3 flex justify-between items-center group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-300 px-2 -mx-2 rounded"
+                            >
                                 <div className="flex items-center space-x-3">
                                     <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v15a2 2 0 002 2z" />
@@ -579,7 +710,10 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <button
-                                                onClick={() => handleView(doc)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleView(doc);
+                                                }}
                                                 className="font-medium text-gray-900 dark:text-gray-200 hover:text-blue-600 hover:underline text-left"
                                             >
                                                 {doc.filename}
@@ -599,14 +733,20 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <button
-                                        onClick={() => handleDownload(doc)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDownload(doc);
+                                        }}
                                         className="text-gray-400 hover:text-blue-600 p-1"
                                         title="Download file"
                                     >
                                         <DownloadIcon className="w-5 h-5" />
                                     </button>
                                     <button
-                                        onClick={() => openReprocessConfirm(doc.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            openReprocessConfirm(doc.id);
+                                        }}
                                         disabled={doc.status === 'processing'}
                                         className="text-gray-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100 transition-opacity"
                                         title="Reprocess Embeddings"
@@ -616,7 +756,10 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                         </svg>
                                     </button>
                                     <button
-                                        onClick={() => openDeleteConfirm(doc.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            openDeleteConfirm(doc.id);
+                                        }}
                                         className="text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
                                         title="Delete Document"
                                     >
@@ -781,9 +924,9 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                     <div className="grid gap-4 py-4">
                         <div className="grid gap-2">
                             <Label htmlFor="feedback">Your Feedback</Label>
-                            <Textarea 
-                                id="feedback" 
-                                value={feedbackText} 
+                            <Textarea
+                                id="feedback"
+                                value={feedbackText}
                                 onChange={(e) => setFeedbackText(e.target.value)}
                                 placeholder="Type your message here..."
                                 className="min-h-[100px]"
@@ -795,6 +938,28 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Document Details Sheet */}
+            <Sheet open={!!selectedDocument} onOpenChange={(open) => !open && setSelectedDocument(null)}>
+                <SheetContent className="w-[400px] sm:w-[540px]">
+                    <SheetHeader>
+                        <SheetTitle>Document Details</SheetTitle>
+                        <SheetDescription>View document information and status</SheetDescription>
+                    </SheetHeader>
+                    {selectedDocument && (
+                        <DocumentDetailsPanel
+                            document={selectedDocument}
+                            onDownload={() => {
+                                handleDownload(selectedDocument);
+                            }}
+                            onDelete={() => {
+                                openDeleteConfirm(selectedDocument.id);
+                                setSelectedDocument(null);
+                            }}
+                        />
+                    )}
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }
