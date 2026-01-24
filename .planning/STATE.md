@@ -2,8 +2,8 @@
 
 **Project:** Gehalt-Pflege Document Pipeline
 **Current Phase:** 3 (In Progress)
-**Current Plan:** 03-01 (Complete)
-**Status:** Phase 3 - Plan 01 Complete
+**Current Plan:** 03-02 (Complete)
+**Status:** Phase 3 - Plan 02 Complete
 
 ## Project Reference
 
@@ -11,7 +11,7 @@
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** Phase 3 - Status & Error Tracking (Plan 01 Complete)
+**Current focus:** Phase 3 - Status & Error Tracking (Plan 02 Complete)
 
 ## Current Position
 
@@ -19,18 +19,18 @@
 
 **Goal:** Documents visibly reflect their pipeline state with status badges and filter chips for admin list management.
 
-**Last activity:** 2026-01-24 - Completed Plan 03-01 (Status Display & Filtering)
+**Last activity:** 2026-01-24 - Completed Plan 03-02 (Document Details Panel & Realtime Updates)
 
-**Next action:** Plan 03-02 (Side Panel Error Details) or continue Phase 3 planning
+**Next action:** Continue Phase 3 planning or proceed to Phase 4 (Edge Function Processing)
 
 ## Progress
 
 ```
-[████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░] 41.7% (2.5/6 phases)
+[█████████████████████████░░░░░░░░░░░░░░░░░░░░░░░] 45.8% (2.75/6 phases)
 
 Phase 1: Database & Storage Foundation ........ ✓ Complete | 1/1 plans
 Phase 2: Atomic File Operations ............... ✓ Complete | 3/3 plans
-Phase 3: Status & Error Tracking .............. ◐ In Progress | 1/? plans
+Phase 3: Status & Error Tracking .............. ◐ In Progress | 2/? plans
 Phase 4: Edge Function Processing ............. ○ Pending | 0/0 plans
 Phase 5: Error Recovery ....................... ○ Pending | 0/0 plans
 Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
@@ -40,7 +40,7 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 |-------|--------|-------|--------------|----------|
 | 1 | ✓ Complete | 1/1 | 3 (DB-01, DB-02, DB-03) | 100% |
 | 2 | ✓ Complete | 3/3 | 5 (FILE-01✓, FILE-02✓, FILE-03✓, ERR-02✓, ERR-03✓) | 100% |
-| 3 | ◐ In Progress | 1/? | 3 (STAT-01✓, STAT-02, STAT-03) | 33%+ |
+| 3 | ◐ In Progress | 2/? | 3 (STAT-01✓, STAT-02✓, STAT-03) | 66%+ |
 | 4 | ○ Pending | 0/0 | 4 (EDGE-01, EDGE-02, EDGE-03, EDGE-04) | 0% |
 | 5 | ○ Pending | 0/0 | 1 (ERR-01) | 0% |
 | 6 | ○ Pending | 0/0 | 0 (integration) | 0% |
@@ -80,6 +80,9 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 | Muted color palette for status badges | Subtle, non-dominating colors (slate/sky/emerald/rose) for professional UI | 2026-01-24 |
 | Set-based filter state for multi-select | Efficient toggle operations and OR logic for combining multiple status filters | 2026-01-24 |
 | Proactive Sheet component installation | Install Plan 02 dependency during Plan 01 to eliminate setup work from next plan | 2026-01-24 |
+| Sheet panel for document details | Provides contextual metadata view without navigation; 400px/540px responsive width | 2026-01-24 |
+| Real-time via Supabase postgres_changes | Live status updates without polling; toast notifications provide immediate feedback | 2026-01-24 |
+| Local state sync pattern | localDocuments synced from props and updated via realtime for dual source of truth | 2026-01-24 |
 
 ### Active TODOs
 
@@ -98,8 +101,8 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 
 **Phase 3 in progress:**
 - [x] Plan 01: Status badges with icons and filter chips
-- [ ] Plan 02: Side panel error details (pending)
-- [ ] Plan 03: Real-time status updates (pending)
+- [x] Plan 02: Document details panel and realtime updates
+- [ ] Plan 03: Additional status tracking features (if planned)
 
 **Deferred to later phases:**
 - Monitoring tools (stale document detection, processing duration metrics) - v2
@@ -108,7 +111,7 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 
 ### Blockers
 
-None. Plan 03-01 complete. Ready for Plan 03-02 (Side Panel Error Details).
+None. Plan 03-02 complete. Phase 3 UI features complete - ready for Phase 4 (Edge Function Processing).
 
 ### Open Questions
 
@@ -117,23 +120,23 @@ None. Plan 03-01 complete. Ready for Plan 03-02 (Side Panel Error Details).
 
 ## Session Continuity
 
-**Last command:** `/gsd:execute-plan .planning/phases/03-status-error-tracking/03-01-PLAN.md`
+**Last command:** `/gsd:execute-plan .planning/phases/03-status-error-tracking/03-02-PLAN.md`
 
 **Last session:** 2026-01-24
 
-**Stopped at:** Completed Plan 03-01 (Status Display & Filtering)
+**Stopped at:** Completed Plan 03-02 (Document Details Panel & Realtime Updates)
 
 **Resume file:** None
 
 **Context for next session:**
-- Plan 03-01 complete: Status badges with icons, filter chips with counts
-- Sheet component installed for Plan 02 side panel
-- TypeScript type error resolved (optional pulse property)
-- Muted color palette: slate/sky/emerald/rose
-- Filter chips support multi-select OR logic with Set-based state
-- Ready for Plan 03-02: Side Panel Error Details
+- Plan 03-02 complete: Document details side panel with error display
+- Supabase realtime subscription for live status updates
+- Toast notifications on status changes (processing/embedded/error)
+- INSERT/UPDATE/DELETE events handled with state updates
+- Phase 3 UI features complete (status badges, filters, details panel, realtime)
+- Ready for Phase 4: Edge Function Processing
 
 ---
 
 *Last updated: 2026-01-24*
-*Phase 3 Plan 01 complete - Status display and filtering*
+*Phase 3 Plan 02 complete - Document details panel and realtime updates*
