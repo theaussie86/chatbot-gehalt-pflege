@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { uploadDocumentAction, deleteDocumentAction, createDocumentRecordAction } from '@/app/actions/documents';
 import { createClient } from '@/utils/supabase/client';
@@ -106,6 +106,59 @@ const StatusBadge = ({ status }: { status: 'pending' | 'processing' | 'embedded'
     );
 };
 
+// Filter chips component
+const FilterChips = ({
+    activeFilters,
+    onToggle,
+    statusCounts,
+    totalCount
+}: {
+    activeFilters: Set<string>;
+    onToggle: (status: string) => void;
+    statusCounts: { pending: number; processing: number; embedded: number; error: number };
+    totalCount: number;
+}) => {
+    const chips = [
+        { key: 'all', label: 'All', count: totalCount, color: 'gray' },
+        { key: 'pending', label: 'Pending', count: statusCounts.pending, color: 'slate' },
+        { key: 'processing', label: 'Processing', count: statusCounts.processing, color: 'sky' },
+        { key: 'embedded', label: 'Embedded', count: statusCounts.embedded, color: 'emerald' },
+        { key: 'error', label: 'Error', count: statusCounts.error, color: 'rose' }
+    ];
+
+    const getChipClasses = (key: string, color: string) => {
+        const isActive = key === 'all' ? activeFilters.size === 0 : activeFilters.has(key);
+
+        if (isActive) {
+            const activeColors: Record<string, string> = {
+                gray: 'bg-gray-100 border-gray-300 text-gray-700',
+                slate: 'bg-slate-100 border-slate-300 text-slate-700',
+                sky: 'bg-sky-100 border-sky-300 text-sky-700',
+                emerald: 'bg-emerald-100 border-emerald-300 text-emerald-700',
+                rose: 'bg-rose-100 border-rose-300 text-rose-700'
+            };
+            return `${activeColors[color]} font-medium`;
+        }
+
+        return 'border-gray-300 text-gray-600 hover:border-gray-400 bg-white';
+    };
+
+    return (
+        <div className="flex flex-wrap gap-2 mb-4">
+            {chips.map(chip => (
+                <button
+                    key={chip.key}
+                    onClick={() => onToggle(chip.key)}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors ${getChipClasses(chip.key, chip.color)}`}
+                >
+                    {chip.label}
+                    <span className="font-semibold">({chip.count})</span>
+                </button>
+            ))}
+        </div>
+    );
+};
+
 interface Document {
     id: string;
     filename: string;
@@ -137,6 +190,9 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
     // Failed files tracking for retry
     const [failedFiles, setFailedFiles] = useState<File[]>([]);
 
+    // Filter state
+    const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+
     const [confirmState, setConfirmState] = useState<{
         isOpen: boolean;
         type: 'delete' | 'reprocess';
@@ -148,6 +204,38 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
 
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [feedbackText, setFeedbackText] = useState("");
+
+    // Compute status counts
+    const statusCounts = useMemo(() => {
+        const counts = { pending: 0, processing: 0, embedded: 0, error: 0 };
+        documents.forEach(doc => {
+            if (doc.status in counts) counts[doc.status as keyof typeof counts]++;
+        });
+        return counts;
+    }, [documents]);
+
+    // Compute filtered documents
+    const filteredDocuments = useMemo(() => {
+        if (activeFilters.size === 0) return documents;
+        return documents.filter(doc => activeFilters.has(doc.status));
+    }, [documents, activeFilters]);
+
+    // Toggle filter handler
+    const handleFilterToggle = (status: string) => {
+        if (status === 'all') {
+            setActiveFilters(new Set());
+        } else {
+            setActiveFilters(prev => {
+                const newFilters = new Set(prev);
+                if (newFilters.has(status)) {
+                    newFilters.delete(status);
+                } else {
+                    newFilters.add(status);
+                }
+                return newFilters;
+            });
+        }
+    };
 
     // Drag handlers
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -460,11 +548,29 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
             </div>
             
             <div className="mb-6">
-                 {documents.length === 0 ? (
+                {documents.length === 0 ? (
                     <p className="text-gray-500 dark:text-gray-400 italic">No documents found.</p>
                 ) : (
-                    <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {documents.map(doc => (
+                    <>
+                        <FilterChips
+                            activeFilters={activeFilters}
+                            onToggle={handleFilterToggle}
+                            statusCounts={statusCounts}
+                            totalCount={documents.length}
+                        />
+                        {filteredDocuments.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                <p className="mb-2">No documents match the selected filters.</p>
+                                <button
+                                    onClick={() => setActiveFilters(new Set())}
+                                    className="text-blue-600 hover:underline text-sm"
+                                >
+                                    Clear filters
+                                </button>
+                            </div>
+                        ) : (
+                            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {filteredDocuments.map(doc => (
                             <li key={doc.id} className="py-3 flex justify-between items-center group">
                                 <div className="flex items-center space-x-3">
                                     <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -520,8 +626,10 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                     </button>
                                 </div>
                             </li>
-                        ))}
-                    </ul>
+                                ))}
+                            </ul>
+                        )}
+                    </>
                 )}
             </div>
 
