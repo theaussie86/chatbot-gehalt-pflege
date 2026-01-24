@@ -29,8 +29,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge"; // Ensure this exists or use inline styles if not
-
 // Download icon component
 const DownloadIcon = ({ className }: { className?: string }) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -38,6 +36,75 @@ const DownloadIcon = ({ className }: { className?: string }) => (
             d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
     </svg>
 );
+
+// Status badge icons (14x14)
+const ClockIcon = () => (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+);
+
+const SpinnerIcon = () => (
+    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
+const CheckCircleIcon = () => (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+);
+
+const XCircleIcon = () => (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+);
+
+// Status badge component with icon + text
+const StatusBadge = ({ status }: { status: 'pending' | 'processing' | 'embedded' | 'error' }) => {
+    const configs = {
+        pending: {
+            icon: <ClockIcon />,
+            text: 'Pending',
+            bgColor: 'bg-slate-100',
+            textColor: 'text-slate-600'
+        },
+        processing: {
+            icon: <SpinnerIcon />,
+            text: 'Processing',
+            bgColor: 'bg-sky-100',
+            textColor: 'text-sky-700',
+            pulse: true
+        },
+        embedded: {
+            icon: <CheckCircleIcon />,
+            text: 'Embedded',
+            bgColor: 'bg-emerald-100',
+            textColor: 'text-emerald-700'
+        },
+        error: {
+            icon: <XCircleIcon />,
+            text: 'Error',
+            bgColor: 'bg-rose-100',
+            textColor: 'text-rose-700'
+        }
+    };
+
+    const config = configs[status];
+
+    return (
+        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${config.bgColor} ${config.textColor} ${config.pulse ? 'animate-pulse' : ''}`}>
+            {config.icon}
+            {config.text}
+        </span>
+    );
+};
 
 interface Document {
     id: string;
@@ -376,15 +443,6 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         toast.success("Your feedback has been received. Thank you!");
     };
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'embedded': return 'bg-green-100 text-green-800 hover:bg-green-100';
-            case 'processing': return 'bg-blue-100 text-blue-800 hover:bg-blue-100 animate-pulse';
-            case 'error': return 'bg-red-100 text-red-800 hover:bg-red-100';
-            default: return 'bg-gray-100 text-gray-800 hover:bg-gray-100';
-        }
-    };
-
     return (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mt-6 relative">
             <div className="flex justify-between items-center mb-4">
@@ -420,9 +478,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                             >
                                                 {doc.filename}
                                             </button>
-                                            <Badge className={getStatusColor(doc.status)} variant="secondary">
-                                                {doc.status || 'unknown'}
-                                            </Badge>
+                                            <StatusBadge status={doc.status} />
                                         </div>
                                         <div className="flex gap-2 items-center mt-1">
                                             <p suppressHydrationWarning className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString()}</p>
