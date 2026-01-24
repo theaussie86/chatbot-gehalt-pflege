@@ -6,6 +6,32 @@ import { RecursiveCharacterTextSplitter } from "npm:@langchain/textsplitters";
 const GEMINI_MODEL_EXTRACT = "gemini-2.5-flash";
 const GEMINI_MODEL_EMBED = "text-embedding-004";
 
+/**
+ * Extract embedding values with multiple fallback paths for SDK version compatibility.
+ * EDGE-01: Handles both v0.x format (embeddings[0].values) and v1.x format (embedding.values)
+ */
+function extractEmbeddingValues(embedResult: any): number[] | null {
+  // Try multiple response formats (SDK version variations)
+  const values =
+    embedResult?.embedding?.values ||        // v1.x format (singular)
+    embedResult?.embeddings?.[0]?.values ||  // v0.x format (array)
+    embedResult?.values ||                    // Direct format
+    null;
+
+  // Validate the result
+  if (!values || !Array.isArray(values) || values.length === 0) {
+    console.error('Invalid embedding response structure:', JSON.stringify(embedResult, null, 2));
+    return null;
+  }
+
+  // Validate dimension (text-embedding-004 should be 768)
+  if (values.length !== 768) {
+    console.warn(`Unexpected embedding dimension: ${values.length} (expected 768)`);
+  }
+
+  return values;
+}
+
 // --- Types ---
 interface DocumentRecord {
   id: string;
@@ -142,30 +168,33 @@ Deno.serve(async (req) => {
         const batch = chunks.slice(i, i + BATCH_SIZE);
         
         const batchPromises = batch.map(async (chunkText, batchIndex) => {
+            const absoluteIndex = i + batchIndex;
             try {
+                console.log(`Embedding chunk ${absoluteIndex + 1}/${chunks.length}`);
+
                 const embedResult = await genAI.models.embedContent({
                     model: GEMINI_MODEL_EMBED,
                     contents: chunkText,
                 });
-                
-                // embedContent returns { embeddings: [{ values: [...] }] } or similar depending on SDK version
-                // Check SDK response structure carefully.
-                // In @google/genai v0.1+, it might be result.embedding.values or result.embeddings[0].values
-                // Based on VectorstoreService.ts: result.embeddings[0].values
-                const values = embedResult.embeddings?.[0]?.values;
 
-                if (!values) return null;
+                // Use defensive extraction with multiple fallback paths
+                const values = extractEmbeddingValues(embedResult);
+                if (!values) {
+                    throw new Error(`Failed to extract embedding for chunk ${absoluteIndex + 1}: invalid response structure`);
+                }
 
                 return {
                     document_id: document.id,
-                    chunk_index: i + batchIndex,
+                    chunk_index: absoluteIndex,
                     content: chunkText,
                     embedding: values,
                     token_count: Math.ceil(chunkText.length / 4) // Rough estimate
                 };
             } catch (e) {
-                console.error(`Failed to embed chunk ${i + batchIndex}`, e);
-                return null;
+                console.error(`Failed to embed chunk ${absoluteIndex + 1}:`, e);
+                const error = e as Error & { index?: number };
+                error.index = absoluteIndex; // Attach index for error reporting
+                throw error;
             }
         });
 
