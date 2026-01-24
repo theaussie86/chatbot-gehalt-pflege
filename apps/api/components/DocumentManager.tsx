@@ -74,7 +74,7 @@ const XCircleIcon = () => (
 );
 
 // Status badge component with icon + text
-const StatusBadge = ({ status }: { status: 'pending' | 'processing' | 'embedded' | 'error' }) => {
+const StatusBadge = ({ status, processingStage }: { status: 'pending' | 'processing' | 'embedded' | 'error'; processingStage?: string | null }) => {
     const configs: Record<string, { icon: React.ReactElement; text: string; bgColor: string; textColor: string; pulse?: boolean }> = {
         pending: {
             icon: <ClockIcon />,
@@ -109,6 +109,9 @@ const StatusBadge = ({ status }: { status: 'pending' | 'processing' | 'embedded'
         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${config.bgColor} ${config.textColor} ${config.pulse ? 'animate-pulse' : ''}`}>
             {config.icon}
             {config.text}
+            {status === 'processing' && processingStage && (
+                <span className="text-sky-600 ml-0.5">({processingStage})</span>
+            )}
         </span>
     );
 };
@@ -199,8 +202,18 @@ const DocumentDetailsPanel = ({
             {/* Status */}
             <div className="space-y-2">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</p>
-                <StatusBadge status={document.status} />
+                <StatusBadge status={document.status} processingStage={document.processing_stage} />
             </div>
+
+            {/* Chunk Count (only for embedded documents) */}
+            {document.status === 'embedded' && document.chunk_count != null && (
+                <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Chunks</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {document.chunk_count} chunks created
+                    </p>
+                </div>
+            )}
 
             {/* Upload Date */}
             <div className="space-y-2">
@@ -284,6 +297,8 @@ interface Document {
     project_id?: string | null;
     storage_path?: string;
     status: 'pending' | 'processing' | 'embedded' | 'error';
+    chunk_count?: number | null;
+    processing_stage?: string | null;
     error_details?: {
         code?: string;
         message?: string;
@@ -910,7 +925,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                             >
                                                 {doc.filename}
                                             </button>
-                                            <StatusBadge status={doc.status} />
+                                            <StatusBadge status={doc.status} processingStage={doc.processing_stage} />
                                         </div>
                                         <div className="flex gap-2 items-center mt-1">
                                             <p suppressHydrationWarning className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString()}</p>
