@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { uploadDocumentAction, deleteDocumentAction, createDocumentRecordAction } from '@/app/actions/documents';
 import { createClient } from '@/utils/supabase/client';
@@ -303,6 +303,9 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
 
+    // Local documents state for realtime updates
+    const [localDocuments, setLocalDocuments] = useState<Document[]>(documents);
+
     // Batch upload state
     const [totalFiles, setTotalFiles] = useState(0);
     const [completedFiles, setCompletedFiles] = useState(0);
@@ -332,20 +335,96 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [feedbackText, setFeedbackText] = useState("");
 
+    // Sync localDocuments when props change
+    useEffect(() => {
+        setLocalDocuments(documents);
+    }, [documents]);
+
+    // Set up Supabase realtime subscription
+    useEffect(() => {
+        const supabase = createClient();
+
+        const channel = supabase
+            .channel('documents-changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'documents'
+                },
+                (payload) => {
+                    const updated = payload.new as Document;
+
+                    // Update local state
+                    setLocalDocuments(prev =>
+                        prev.map(doc => doc.id === updated.id ? { ...doc, ...updated } : doc)
+                    );
+
+                    // Update selected document if it's the one that changed
+                    setSelectedDocument(prev =>
+                        prev?.id === updated.id ? { ...prev, ...updated } : prev
+                    );
+
+                    // Show toast notification for status changes
+                    if (updated.status === 'embedded') {
+                        toast.success(`"${updated.filename}" processing complete`);
+                    } else if (updated.status === 'error') {
+                        toast.error(`"${updated.filename}" processing failed`);
+                    } else if (updated.status === 'processing') {
+                        toast.info(`"${updated.filename}" is now processing`);
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'DELETE',
+                    schema: 'public',
+                    table: 'documents'
+                },
+                (payload) => {
+                    const deleted = payload.old as { id: string };
+                    setLocalDocuments(prev => prev.filter(doc => doc.id !== deleted.id));
+                    // Close panel if deleted document was selected
+                    setSelectedDocument(prev => prev?.id === deleted.id ? null : prev);
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'documents'
+                },
+                (payload) => {
+                    const newDoc = payload.new as Document;
+                    // Prepend new document to list
+                    setLocalDocuments(prev => [newDoc, ...prev]);
+                    toast.info(`New document: "${newDoc.filename}"`);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
+
     // Compute status counts
     const statusCounts = useMemo(() => {
         const counts = { pending: 0, processing: 0, embedded: 0, error: 0 };
-        documents.forEach(doc => {
+        localDocuments.forEach(doc => {
             if (doc.status in counts) counts[doc.status as keyof typeof counts]++;
         });
         return counts;
-    }, [documents]);
+    }, [localDocuments]);
 
     // Compute filtered documents
     const filteredDocuments = useMemo(() => {
-        if (activeFilters.size === 0) return documents;
-        return documents.filter(doc => activeFilters.has(doc.status));
-    }, [documents, activeFilters]);
+        if (activeFilters.size === 0) return localDocuments;
+        return localDocuments.filter(doc => activeFilters.has(doc.status));
+    }, [localDocuments, activeFilters]);
 
     // Toggle filter handler
     const handleFilterToggle = (status: string) => {
@@ -675,7 +754,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
             </div>
             
             <div className="mb-6">
-                {documents.length === 0 ? (
+                {localDocuments.length === 0 ? (
                     <p className="text-gray-500 dark:text-gray-400 italic">No documents found.</p>
                 ) : (
                     <>
@@ -683,7 +762,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                             activeFilters={activeFilters}
                             onToggle={handleFilterToggle}
                             statusCounts={statusCounts}
-                            totalCount={documents.length}
+                            totalCount={localDocuments.length}
                         />
                         {filteredDocuments.length === 0 ? (
                             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -898,7 +977,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
                             {confirmState.type === 'delete'
-                                ? `Delete "${documents.find(d => d.id === confirmState.documentId)?.filename}"? This will remove the file and all embeddings. This action cannot be undone.`
+                                ? `Delete "${localDocuments.find(d => d.id === confirmState.documentId)?.filename}"? This will remove the file and all embeddings. This action cannot be undone.`
                                 : "This will clear all existing embeddings for this document and regenerate them. This process might take a while."
                             }
                         </AlertDialogDescription>
