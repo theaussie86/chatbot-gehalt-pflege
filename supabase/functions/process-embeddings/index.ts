@@ -79,10 +79,11 @@ Deno.serve(async (req) => {
 
     console.log(`Processing document ${document.id} (${document.filename})`);
 
-    // 1. Update Status to Processing
+    // 1. Update Status to Processing with initial stage
+    currentStage = 'downloading';
     await supabase
       .from("documents")
-      .update({ status: "processing" })
+      .update({ status: "processing", processing_stage: "downloading file" })
       .eq("id", document.id);
 
     // 2. Download from Storage
@@ -121,6 +122,11 @@ Deno.serve(async (req) => {
 
     // 4. Extract Text
     currentStage = 'extracting_text';
+    await supabase
+      .from("documents")
+      .update({ processing_stage: "extracting text" })
+      .eq("id", document.id);
+
     const extractResult = await genAI.models.generateContent({
       model: GEMINI_MODEL_EXTRACT,
       contents: [
@@ -158,6 +164,11 @@ Deno.serve(async (req) => {
 
     // 6. Generate Embeddings & Insert
     currentStage = 'embedding';
+    await supabase
+      .from("documents")
+      .update({ processing_stage: "embedding chunks" })
+      .eq("id", document.id);
+
     // Delete old chunks first
     await supabase.from("document_chunks").delete().eq("document_id", document.id);
 
@@ -198,13 +209,50 @@ Deno.serve(async (req) => {
             }
         });
 
-        const batchResults = await Promise.all(batchPromises);
-        const validResults = batchResults.filter((r) => r !== null);
-        chunkDataArray.push(...validResults);
+        // Use Promise.allSettled instead of Promise.all to capture all results
+        const batchResults = await Promise.allSettled(batchPromises);
+
+        // Separate successful and failed results
+        type ChunkData = {
+          document_id: string;
+          chunk_index: number;
+          content: string;
+          embedding: number[];
+          token_count: number;
+        };
+        const successful: ChunkData[] = [];
+        const failed: { index: number; error: string }[] = [];
+
+        for (const result of batchResults) {
+          if (result.status === 'fulfilled' && result.value !== null) {
+            successful.push(result.value);
+          } else if (result.status === 'rejected') {
+            const reason = result.reason as Error & { index?: number };
+            failed.push({
+              index: reason?.index ?? -1,
+              error: reason?.message ?? 'Unknown error'
+            });
+          }
+        }
+
+        // ALL-OR-NOTHING: If ANY chunk fails, fail the entire document
+        if (failed.length > 0) {
+          throw new Error(
+            `Embedding failed for ${failed.length} of ${batch.length} chunks in batch. ` +
+            `First failure: ${failed[0].error}`
+          );
+        }
+
+        chunkDataArray.push(...successful);
     }
 
     if (chunkDataArray.length > 0) {
         currentStage = 'inserting';
+        await supabase
+          .from("documents")
+          .update({ processing_stage: "inserting chunks" })
+          .eq("id", document.id);
+
         const { error: insertError } = await supabase
         .from("document_chunks")
         .insert(chunkDataArray);
@@ -212,10 +260,14 @@ Deno.serve(async (req) => {
         if (insertError) throw insertError;
     }
 
-    // 7. Update Status (cleanup moved to finally block)
+    // 7. Update Status with chunk count (cleanup moved to finally block)
     await supabase
       .from("documents")
-      .update({ status: "embedded" })
+      .update({
+        status: "embedded",
+        chunk_count: chunkDataArray.length,
+        processing_stage: null  // Clear processing stage on completion
+      })
       .eq("id", document.id);
 
     return new Response(JSON.stringify({ success: true }), {
