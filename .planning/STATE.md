@@ -2,8 +2,8 @@
 
 **Project:** Gehalt-Pflege Document Pipeline
 **Current Phase:** 4 (In Progress)
-**Current Plan:** 04-02 (Complete)
-**Status:** Phase 4 Plan 02 Complete
+**Current Plan:** 04-03 (Complete)
+**Status:** Phase 4 Plan 03 Complete
 
 ## Project Reference
 
@@ -11,7 +11,7 @@
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** Phase 4 - Edge Function Processing (Plan 02 Complete)
+**Current focus:** Phase 4 - Edge Function Processing (Plan 03 Complete)
 
 ## Current Position
 
@@ -19,19 +19,19 @@
 
 **Goal:** Edge function reliably processes documents into searchable chunks with proper error handling.
 
-**Last activity:** 2026-01-24 - Completed 04-02-PLAN.md (defensive embedding parsing)
+**Last activity:** 2026-01-24 - Completed 04-03-PLAN.md (chunking and file type handling)
 
-**Next action:** Continue to Plan 04-03 (if exists) or complete Phase 4
+**Next action:** Continue to Plan 04-04 (deploy and verify E2E processing)
 
 ## Progress
 
 ```
-[█████████████████████████████████████░░░░░░░░░░░] 58.3% (3/6 phases + 2 plans)
+[████████████████████████████████████████░░░░░░░░] 62.5% (3/6 phases + 3 plans)
 
 Phase 1: Database & Storage Foundation ........ ✓ Complete | 1/1 plans
 Phase 2: Atomic File Operations ............... ✓ Complete | 3/3 plans
 Phase 3: Status & Error Tracking .............. ✓ Complete | 3/3 plans
-Phase 4: Edge Function Processing ............. ◐ In Progress | 2/? plans
+Phase 4: Edge Function Processing ............. ◐ In Progress | 3/4 plans
 Phase 5: Error Recovery ....................... ○ Pending | 0/? plans
 Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 ```
@@ -41,7 +41,7 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 | 1 | ✓ Complete | 1/1 | 3 (DB-01✓, DB-02✓, DB-03✓) | 100% |
 | 2 | ✓ Complete | 3/3 | 5 (FILE-01✓, FILE-02✓, FILE-03✓, ERR-02✓, ERR-03✓) | 100% |
 | 3 | ✓ Complete | 3/3 | 3 (STAT-01✓, STAT-02✓, STAT-03✓) | 100% |
-| 4 | ◐ In Progress | 2/? | 4 (EDGE-01✓, EDGE-02✓, EDGE-03, EDGE-04) | 50% |
+| 4 | ◐ In Progress | 3/4 | 4 (EDGE-01✓, EDGE-02✓, EDGE-03✓, EDGE-04) | 75% |
 | 5 | ○ Pending | 0/? | 1 (ERR-01) | 0% |
 | 6 | ○ Pending | 0/? | 0 (integration) | 0% |
 
@@ -61,6 +61,8 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 - No error messages visible in logs
 
 **Post 04-02:** Defensive embedding parsing with SDK version compatibility. All-or-nothing document failure semantics. Real-time processing stage visibility.
+
+**Post 04-03:** Improved chunking (2000/100 char size/overlap), MIME type validation, spreadsheet markdown conversion, image-only PDF detection.
 
 ### Decisions
 
@@ -94,6 +96,11 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 | Defensive embedding parsing | 3 fallback paths (v1.x, v0.x, direct) for SDK version compatibility | 2026-01-24 |
 | All-or-nothing document semantics | Any chunk failure fails entire document; partial embeddings create incomplete search | 2026-01-24 |
 | Promise.allSettled for batches | Captures all results before deciding outcome; no cascading failure hiding | 2026-01-24 |
+| Chunk size 2000 chars | Middle of 1000-3000 range per CONTEXT.md; balances semantic coherence with retrieval granularity | 2026-01-24 |
+| Chunk overlap 100 chars | Per CONTEXT.md specification; provides context continuity at chunk boundaries | 2026-01-24 |
+| Paragraph-first separators | Semantic chunking respects document structure by splitting on \\n\\n first | 2026-01-24 |
+| Image-only PDF heuristic | >1000 bytes/char AND <100 chars extracted detects scanned PDFs | 2026-01-24 |
+| Spreadsheet markdown extraction | File-type specific prompts convert tables to markdown format for embedding | 2026-01-24 |
 
 ### Active TODOs
 
@@ -118,9 +125,10 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 **Phase 4 in progress:**
 - [x] Plan 01: Fix Blob MIME type, error handling, Gemini cleanup
 - [x] Plan 02: Defensive embedding parsing, Promise.allSettled, processing stage visibility
+- [x] Plan 03: Improved chunking (2000/100), MIME validation, spreadsheet markdown, image-only PDF detection
 - [ ] Apply migration 20260124154600_add_processing_columns.sql in Supabase SQL Editor
 - [ ] Deploy updated edge function: `supabase functions deploy process-embeddings`
-- [ ] Remaining plans (04-03, etc.)
+- [ ] Plan 04: Deploy and verify E2E processing
 
 **Deferred to later phases:**
 - Monitoring tools (stale document detection, processing duration metrics) - v2
@@ -129,7 +137,7 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 
 ### Blockers
 
-None. Plan 04-02 complete. Edge function needs deployment and migration to test fixes.
+None. Plan 04-03 complete. Edge function needs deployment and migration to test fixes (Plan 04-04).
 
 ### Open Questions
 
@@ -138,28 +146,28 @@ None. Plan 04-02 complete. Edge function needs deployment and migration to test 
 
 ## Session Continuity
 
-**Last command:** `/gsd:execute-plan 04-02`
+**Last command:** `/gsd:execute-plan 04-03`
 
 **Last session:** 2026-01-24
 
-**Stopped at:** Plan 04-02 Complete
+**Stopped at:** Plan 04-03 Complete
 
 **Resume file:** None
 
 **Context for next session:**
-- **Plan 04-02 complete** - Defensive embedding parsing:
-  - extractEmbeddingValues() helper with 3 SDK version fallbacks
-  - Promise.allSettled for batch processing (replaces Promise.all)
-  - All-or-nothing: any chunk failure fails entire document
-  - Processing stage visibility (downloading -> extracting text -> embedding chunks -> inserting chunks -> embedded)
-  - chunk_count stored on successful completion
-  - processing_stage cleared on completion
+- **Plan 04-03 complete** - Chunking and file type handling:
+  - Chunking updated to 2000 char size / 100 char overlap
+  - Semantic separators prioritize paragraph breaks (\n\n first)
+  - SUPPORTED_MIME_TYPES constant with validation (PDF, text, markdown, CSV, XLSX)
+  - getExtractionPrompt() helper for file-type specific prompts
+  - Spreadsheets converted to markdown table format
+  - Image-only PDF detection via bytes-per-char heuristic
 - **Migration needed:** Apply `20260124154600_add_processing_columns.sql` in Supabase SQL Editor
 - **Deployment needed:** Run `supabase functions deploy process-embeddings` to apply fixes
-- **Ready for testing:** Can now test document upload with real-time processing stage visibility
-- **Continue with:** Plan 04-03 or subsequent plans in Phase 4
+- **Ready for testing:** All edge function code complete, needs deployment (Plan 04-04)
+- **Continue with:** Plan 04-04 (Deploy and verify E2E processing)
 
 ---
 
 *Last updated: 2026-01-24*
-*Plan 04-02 complete - Defensive embedding parsing and Promise.allSettled*
+*Plan 04-03 complete - Improved chunking and file type handling*
