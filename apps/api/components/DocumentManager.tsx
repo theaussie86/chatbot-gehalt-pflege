@@ -68,7 +68,7 @@ const XCircleIcon = () => (
 
 // Status badge component with icon + text
 const StatusBadge = ({ status }: { status: 'pending' | 'processing' | 'embedded' | 'error' }) => {
-    const configs = {
+    const configs: Record<string, { icon: React.ReactElement; text: string; bgColor: string; textColor: string; pulse?: boolean }> = {
         pending: {
             icon: <ClockIcon />,
             text: 'Pending',
