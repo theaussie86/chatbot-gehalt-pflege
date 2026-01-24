@@ -15,9 +15,9 @@ Requirements for the document pipeline milestone. Each maps to roadmap phases.
 
 ### Status Tracking
 
-- [ ] **STAT-01**: Document status reflects pipeline state: pending → processing → embedded / error
-- [ ] **STAT-02**: Failed documents store error message explaining what went wrong
-- [ ] **STAT-03**: Admin UI displays document status with visual indicators
+- [x] **STAT-01**: Document status reflects pipeline state: pending → processing → embedded / error
+- [x] **STAT-02**: Failed documents store error message explaining what went wrong
+- [x] **STAT-03**: Admin UI displays document status with visual indicators
 
 ### Error Recovery
 
@@ -86,9 +86,9 @@ Which phases cover which requirements. Updated after roadmap creation.
 | FILE-03 | Phase 2 | Complete |
 | ERR-02 | Phase 2 | Complete |
 | ERR-03 | Phase 2 | Complete |
-| STAT-01 | Phase 3 | Pending |
-| STAT-02 | Phase 3 | Pending |
-| STAT-03 | Phase 3 | Pending |
+| STAT-01 | Phase 3 | Complete |
+| STAT-02 | Phase 3 | Complete |
+| STAT-03 | Phase 3 | Complete |
 | EDGE-01 | Phase 4 | Pending |
 | EDGE-02 | Phase 4 | Pending |
 | EDGE-03 | Phase 4 | Pending |
@@ -110,4 +110,4 @@ Which phases cover which requirements. Updated after roadmap creation.
 
 ---
 *Requirements defined: 2026-01-23*
-*Last updated: 2026-01-24 - Phase 2 requirements complete*
+*Last updated: 2026-01-24 - Phase 3 requirements complete*

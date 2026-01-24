@@ -24,7 +24,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 |-------|--------|-------|----------|
 | 1 | ✓ Complete | 1/1 | 100% |
 | 2 | ✓ Complete | 3/3 | 100% |
-| 3 | ○ Planned | 0/3 | 0% |
+| 3 | ✓ Complete | 3/3 | 100% |
 | 4 | ○ Pending | 0/0 | 0% |
 | 5 | ○ Pending | 0/0 | 0% |
 | 6 | ○ Pending | 0/0 | 0% |
@@ -100,9 +100,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Status badges with icons and filter chips with counts
-- [ ] 03-02-PLAN.md — Document details side panel and real-time status updates
-- [ ] 03-03-PLAN.md — Checkbox selection, bulk delete, and human verification
+- [x] 03-01-PLAN.md — Status badges with icons and filter chips with counts
+- [x] 03-02-PLAN.md — Document details side panel and real-time status updates
+- [x] 03-03-PLAN.md — Checkbox selection, bulk delete, and human verification
 
 **Success Criteria:**
 1. Newly uploaded document shows status "pending" in admin UI
