@@ -323,6 +323,9 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
     // Selected document for details panel
     const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
 
+    // Checkbox selection state
+    const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
+
     const [confirmState, setConfirmState] = useState<{
         isOpen: boolean;
         type: 'delete' | 'reprocess';
@@ -442,6 +445,31 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
             });
         }
     };
+
+    // Selection helpers
+    const toggleSelection = (docId: string) => {
+        setSelectedDocuments(prev => {
+            const next = new Set(prev);
+            if (next.has(docId)) {
+                next.delete(docId);
+            } else {
+                next.add(docId);
+            }
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedDocuments.size === filteredDocuments.length) {
+            setSelectedDocuments(new Set());
+        } else {
+            setSelectedDocuments(new Set(filteredDocuments.map(d => d.id)));
+        }
+    };
+
+    const isAllSelected = filteredDocuments.length > 0 &&
+        selectedDocuments.size === filteredDocuments.length;
+    const isSomeSelected = selectedDocuments.size > 0 && !isAllSelected;
 
     // Drag handlers
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -775,14 +803,43 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                 </button>
                             </div>
                         ) : (
-                            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-                                {filteredDocuments.map(doc => (
-                            <li
-                                key={doc.id}
-                                onClick={() => setSelectedDocument(doc)}
-                                className="py-3 flex justify-between items-center group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-300 px-2 -mx-2 rounded"
-                            >
-                                <div className="flex items-center space-x-3">
+                            <>
+                                {/* Select all header */}
+                                <div className="flex items-center gap-2 py-2 border-b border-gray-200 dark:border-gray-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={isAllSelected}
+                                        ref={(el) => {
+                                            if (el) el.indeterminate = isSomeSelected;
+                                        }}
+                                        onChange={toggleSelectAll}
+                                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                        {selectedDocuments.size > 0
+                                            ? `${selectedDocuments.size} selected`
+                                            : `${filteredDocuments.length} documents`}
+                                    </span>
+                                </div>
+
+                                <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                                    {filteredDocuments.map(doc => (
+                                <li
+                                    key={doc.id}
+                                    onClick={() => setSelectedDocument(doc)}
+                                    className="py-3 flex justify-between items-center group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-300 px-2 -mx-2 rounded"
+                                >
+                                    <div className="flex items-center space-x-3">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedDocuments.has(doc.id)}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                toggleSelection(doc.id);
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
                                     <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v15a2 2 0 002 2z" />
                                     </svg>
@@ -848,8 +905,9 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                     </button>
                                 </div>
                             </li>
-                                ))}
-                            </ul>
+                                    ))}
+                                </ul>
+                            </>
                         )}
                     </>
                 )}
