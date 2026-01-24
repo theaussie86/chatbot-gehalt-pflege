@@ -177,7 +177,7 @@ export async function reprocessDocumentAction(documentId: string) {
             .eq("id", documentId);
 
         if (error) throw error;
-        
+
         revalidatePath('/documents');
         revalidatePath('/admin/documents');
         return { success: true };
@@ -185,4 +185,76 @@ export async function reprocessDocumentAction(documentId: string) {
         console.error("Reprocess action failed:", error);
         return { error: error.message };
     }
+}
+
+export async function bulkDeleteDocumentsAction(documentIds: string[]) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return {
+            success: false,
+            successCount: 0,
+            failCount: documentIds.length,
+            results: documentIds.map(id => ({ id, success: false, error: 'Unauthorized' }))
+        };
+    }
+
+    const results: { id: string; success: boolean; error?: string }[] = [];
+
+    // Delete sequentially for atomicity per document
+    for (const id of documentIds) {
+        try {
+            // Get document first to find storage path
+            const { data: doc } = await supabase
+                .from('documents')
+                .select('storage_path')
+                .eq('id', id)
+                .single();
+
+            if (!doc) {
+                results.push({ id, success: false, error: 'Document not found' });
+                continue;
+            }
+
+            // DB-first delete (cascade removes chunks)
+            const { error: dbError } = await supabase
+                .from('documents')
+                .delete()
+                .eq('id', id);
+
+            if (dbError) {
+                results.push({ id, success: false, error: dbError.message });
+                continue;
+            }
+
+            // Then delete from storage (orphaned file if this fails is acceptable)
+            if (doc.storage_path) {
+                const { error: storageError } = await supabase.storage
+                    .from('project-files')
+                    .remove([doc.storage_path]);
+
+                if (storageError) {
+                    console.warn(`Storage cleanup failed for ${id}: ${storageError.message}`);
+                }
+            }
+
+            results.push({ id, success: true });
+        } catch (err: any) {
+            results.push({ id, success: false, error: err.message });
+        }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+
+    revalidatePath('/documents');
+    revalidatePath('/admin/documents');
+
+    return {
+        success: failCount === 0,
+        successCount,
+        failCount,
+        results
+    };
 }

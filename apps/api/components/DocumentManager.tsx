@@ -332,6 +332,10 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         documentId: string;
     }>({ isOpen: false, type: 'delete', documentId: '' });
 
+    // Bulk delete state
+    const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
     // URL cache with expiry tracking
     const [urlCache, setUrlCache] = useState<Map<string, { url: string, expiresAt: number }>>(new Map());
 
@@ -765,6 +769,33 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         toast.success("Your feedback has been received. Thank you!");
     };
 
+    const handleBulkDelete = async () => {
+        setIsBulkDeleting(true);
+        const toastId = toast.loading(`Deleting ${selectedDocuments.size} documents...`);
+
+        try {
+            const { bulkDeleteDocumentsAction } = await import('@/app/actions/documents');
+            const result = await bulkDeleteDocumentsAction(Array.from(selectedDocuments));
+
+            if (result.success) {
+                toast.success(`Successfully deleted ${result.successCount} documents`, { id: toastId });
+            } else {
+                toast.warning(
+                    `Deleted ${result.successCount}, failed ${result.failCount}`,
+                    { id: toastId }
+                );
+            }
+
+            setSelectedDocuments(new Set());
+            setIsBulkDeleteOpen(false);
+            router.refresh();
+        } catch (error: any) {
+            toast.error(`Bulk delete failed: ${error.message}`, { id: toastId });
+        } finally {
+            setIsBulkDeleting(false);
+        }
+    };
+
     return (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mt-6 relative">
             <div className="flex justify-between items-center mb-4">
@@ -792,6 +823,31 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                             statusCounts={statusCounts}
                             totalCount={localDocuments.length}
                         />
+
+                        {/* Bulk actions toolbar */}
+                        {selectedDocuments.size > 0 && (
+                            <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 mb-4">
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    {selectedDocuments.size} document{selectedDocuments.size !== 1 ? 's' : ''} selected
+                                </span>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setSelectedDocuments(new Set())}
+                                    >
+                                        Clear selection
+                                    </Button>
+                                    <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() => setIsBulkDeleteOpen(true)}
+                                    >
+                                        Delete selected
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                         {filteredDocuments.length === 0 ? (
                             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                                 <p className="mb-2">No documents match the selected filters.</p>
@@ -1097,6 +1153,29 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                     )}
                 </SheetContent>
             </Sheet>
+
+            {/* Bulk Delete Confirmation Dialog */}
+            <AlertDialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete {selectedDocuments.size} documents?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete the selected documents and all their embeddings.
+                            This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isBulkDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleBulkDelete}
+                            disabled={isBulkDeleting}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            {isBulkDeleting ? 'Deleting...' : `Delete ${selectedDocuments.size} documents`}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
