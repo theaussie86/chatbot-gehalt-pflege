@@ -297,13 +297,21 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         const { getDocumentDownloadUrlAction } = await import('@/app/actions/documents');
         const result = await getDocumentDownloadUrlAction(doc.id);
         if (result.url) {
-            // Create temporary link and trigger download
-            const link = document.createElement('a');
-            link.href = result.url;
-            link.download = doc.filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            // Fetch as blob to enable cross-origin download with filename
+            try {
+                const response = await fetch(result.url);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = doc.filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(blobUrl);
+            } catch (error) {
+                toast.error("Failed to download file");
+            }
         } else {
             toast.error(result.error || "Failed to get download URL");
         }
