@@ -24,7 +24,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 |-------|--------|-------|----------|
 | 1 | ✓ Complete | 1/1 | 100% |
 | 2 | ✓ Complete | 3/3 | 100% |
-| 3 | ○ Pending | 0/0 | 0% |
+| 3 | ○ Planned | 0/3 | 0% |
 | 4 | ○ Pending | 0/0 | 0% |
 | 5 | ○ Pending | 0/0 | 0% |
 | 6 | ○ Pending | 0/0 | 0% |
@@ -96,6 +96,13 @@ Plans:
 - **STAT-01**: Document status reflects pipeline state: pending → processing → embedded / error
 - **STAT-02**: Failed documents store error message explaining what went wrong
 - **STAT-03**: Admin UI displays document status with visual indicators
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Status badges with icons and filter chips with counts
+- [ ] 03-02-PLAN.md — Document details side panel and real-time status updates
+- [ ] 03-03-PLAN.md — Checkbox selection, bulk delete, and human verification
 
 **Success Criteria:**
 1. Newly uploaded document shows status "pending" in admin UI
@@ -222,4 +229,4 @@ This compression maintains natural delivery boundaries while hitting standard de
 
 ---
 
-*Last updated: 2026-01-23*
+*Last updated: 2026-01-24*
