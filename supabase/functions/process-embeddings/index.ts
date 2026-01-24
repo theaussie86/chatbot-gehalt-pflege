@@ -28,6 +28,11 @@ interface WebhookPayload {
 
 // --- Main Handler ---
 Deno.serve(async (req) => {
+  // Declare at function scope - BEFORE try block for access in catch/finally
+  let documentId: string | null = null;
+  let uploadedFile: { file: { name: string; uri: string; mimeType: string } } | null = null;
+  let currentStage = 'init';
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -35,6 +40,7 @@ Deno.serve(async (req) => {
 
   try {
     const payload: WebhookPayload = await req.json();
+    documentId = payload.record.id;  // Store immediately for error handling
     const document = payload.record;
 
     // Only process on specific trigger conditions
@@ -54,6 +60,7 @@ Deno.serve(async (req) => {
       .eq("id", document.id);
 
     // 2. Download from Storage
+    currentStage = 'downloading';
     const { data: fileBlob, error: downloadError } = await supabase.storage
       .from("project-files")
       .download(document.storage_path);
@@ -63,6 +70,7 @@ Deno.serve(async (req) => {
     }
 
     // 3. Upload to Gemini for Extraction
+    currentStage = 'uploading_gemini';
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY");
     const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
@@ -70,20 +78,23 @@ Deno.serve(async (req) => {
     // Convert Blob to ArrayBuffer then to base64 or upload directly via Files API
     // The Google GenAI NodeJS SDK supports File/Blob in some envs, but in Deno we might need to be careful.
     // The previous code used `client.files.upload`. Let's use the same.
-    
+
     // Note: client.files.upload expects a `Blob` or `File`.
     // In Deno, `fileBlob` is a Blob.
-    const uploadResult = await genAI.files.upload({
-      file: new File([fileBlob], document.filename, { type: fileBlob.mime_type }),
+    // EDGE-01: Use fileBlob.type (not .mime_type) with fallback to document.mime_type
+    const mimeType = fileBlob.type || document.mime_type;
+    uploadedFile = await genAI.files.upload({
+      file: new File([fileBlob], document.filename, { type: mimeType }),
       config: {
-        mimeType: fileBlob.mime_type,
+        mimeType: mimeType,
         displayName: document.filename,
       },
     });
 
-    console.log(`Uploaded to Gemini: ${uploadResult.uri}`);
+    console.log(`Uploaded to Gemini: ${uploadedFile.file.uri}`);
 
     // 4. Extract Text
+    currentStage = 'extracting_text';
     const extractResult = await genAI.models.generateContent({
       model: GEMINI_MODEL_EXTRACT,
       contents: [
@@ -91,8 +102,8 @@ Deno.serve(async (req) => {
           parts: [
             {
               fileData: {
-                mimeType: uploadResult.file.mimeType,
-                fileUri: uploadResult.file.uri,
+                mimeType: uploadedFile.file.mimeType,
+                fileUri: uploadedFile.file.uri,
               },
             },
             {
@@ -111,6 +122,7 @@ Deno.serve(async (req) => {
     }
 
     // 5. Chunk Text
+    currentStage = 'chunking';
     const splitter = new RecursiveCharacterTextSplitter({
       chunkSize: 1000,
       chunkOverlap: 200,
@@ -119,6 +131,7 @@ Deno.serve(async (req) => {
     console.log(`Generated ${chunks.length} chunks`);
 
     // 6. Generate Embeddings & Insert
+    currentStage = 'embedding';
     // Delete old chunks first
     await supabase.from("document_chunks").delete().eq("document_id", document.id);
 
@@ -162,6 +175,7 @@ Deno.serve(async (req) => {
     }
 
     if (chunkDataArray.length > 0) {
+        currentStage = 'inserting';
         const { error: insertError } = await supabase
         .from("document_chunks")
         .insert(chunkDataArray);
@@ -169,14 +183,7 @@ Deno.serve(async (req) => {
         if (insertError) throw insertError;
     }
 
-    // 7. Cleanup & Update Status
-    // Delete from Gemini
-    try {
-        await genAI.files.delete({ name: uploadResult.file.name });
-    } catch (e) {
-        console.warn("Failed to delete Gemini file", e);
-    }
-
+    // 7. Update Status (cleanup moved to finally block)
     await supabase
       .from("documents")
       .update({ status: "embedded" })
@@ -188,26 +195,45 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error("Error processing document:", error);
-    
-    // Try to update status to error
-    const supabase = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
-    
-    try {
-        const payload: WebhookPayload = await req.json().catch(() => ({ record: {} } as any));
-        if (payload?.record?.id) {
-            await supabase
-                .from("documents")
-                .update({ status: "error" }) // Could add a generic error column later
-                .eq("id", payload.record.id);
-        }
-    } catch {}
 
-    return new Response(JSON.stringify({ error: error.message }), {
+    // EDGE-02: Use pre-stored documentId (request body already consumed)
+    if (documentId) {
+      try {
+        await supabase
+          .from("documents")
+          .update({
+            status: "error",
+            error_details: {
+              code: "PROCESSING_ERROR",
+              message: error instanceof Error ? error.message : String(error),
+              timestamp: new Date().toISOString(),
+              stage: currentStage
+            }
+          })
+          .eq("id", documentId);
+      } catch (updateError) {
+        console.error("Failed to update document status to error:", updateError);
+      }
+    }
+
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
+  } finally {
+    // EDGE-03: Always cleanup Gemini files, even on error
+    if (uploadedFile?.file?.name) {
+      const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+      if (geminiApiKey) {
+        try {
+          const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+          await genAI.files.delete({ name: uploadedFile.file.name });
+          console.log(`Cleaned up Gemini file: ${uploadedFile.file.name}`);
+        } catch (cleanupError) {
+          // Log but don't throw - cleanup failure shouldn't mask original error
+          console.warn(`Failed to cleanup Gemini file ${uploadedFile.file.name}:`, cleanupError);
+        }
+      }
+    }
   }
 });
