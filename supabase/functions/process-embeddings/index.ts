@@ -149,18 +149,36 @@ Deno.serve(async (req) => {
     const textContent = extractResult.text || "";
     console.log(`Extracted text length: ${textContent.length}`);
 
-    if (!textContent) {
-      throw new Error("No text extracted from document");
+    // Validate we got meaningful content
+    if (!textContent || textContent.trim().length < 50) {
+      throw new Error(
+        "No text extracted from document. " +
+        "This may be a scanned PDF containing only images. " +
+        "Please upload a text-based PDF."
+      );
     }
 
     // 5. Chunk Text
     currentStage = 'chunking';
+    // CONTEXT.md: Target chunk size 1000-3000 chars, ~100 char overlap
     const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
+      chunkSize: 2000,        // Target middle of 1000-3000 range
+      chunkOverlap: 100,      // ~100 char overlap per CONTEXT.md
+      separators: [
+        "\n\n",   // Paragraph breaks first (semantic)
+        "\n",     // Line breaks
+        ". ",     // Sentences
+        ", ",     // Clauses
+        " ",      // Words
+        ""        // Characters (last resort)
+      ],
     });
     const chunks = await splitter.splitText(textContent);
     console.log(`Generated ${chunks.length} chunks`);
+
+    if (chunks.length === 0) {
+      throw new Error("Document produced no chunks after splitting");
+    }
 
     // 6. Generate Embeddings & Insert
     currentStage = 'embedding';
