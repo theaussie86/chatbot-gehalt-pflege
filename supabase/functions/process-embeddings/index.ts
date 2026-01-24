@@ -6,6 +6,18 @@ import { RecursiveCharacterTextSplitter } from "npm:@langchain/textsplitters";
 const GEMINI_MODEL_EXTRACT = "gemini-2.5-flash";
 const GEMINI_MODEL_EMBED = "text-embedding-004";
 
+// Supported file types for processing
+const SUPPORTED_MIME_TYPES = [
+  'application/pdf',
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+] as const;
+
+type SupportedMimeType = typeof SUPPORTED_MIME_TYPES[number];
+
 /**
  * Extract embedding values with multiple fallback paths for SDK version compatibility.
  * EDGE-01: Handles both v0.x format (embeddings[0].values) and v1.x format (embedding.values)
@@ -30,6 +42,23 @@ function extractEmbeddingValues(embedResult: any): number[] | null {
   }
 
   return values;
+}
+
+/**
+ * Get extraction prompt customized for file type.
+ * Spreadsheets get markdown table conversion, other files get standard text extraction.
+ */
+function getExtractionPrompt(mimeType: string): string {
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType === 'text/csv') {
+    return `Extract all content from this spreadsheet.
+Convert tables to markdown table format with | separators.
+Preserve headers and data structure.
+Return only the extracted content, no explanations.`;
+  }
+
+  return `Extract all the text from this document.
+Return only the text content.
+Do not include any markdown formatting or introductory text, just the raw content.`;
 }
 
 // --- Types ---
@@ -96,20 +125,22 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to download file: ${downloadError?.message}`);
     }
 
+    // EDGE-03: Validate MIME type is supported
+    // EDGE-01: Use fileBlob.type (not .mime_type) with fallback to document.mime_type
+    const mimeType = fileBlob.type || document.mime_type;
+
+    if (!SUPPORTED_MIME_TYPES.includes(mimeType as SupportedMimeType)) {
+      throw new Error(
+        `Unsupported file type: ${mimeType}. ` +
+        `Supported formats: PDF, plain text (.txt, .md), spreadsheets (.csv, .xlsx)`
+      );
+    }
+
     // 3. Upload to Gemini for Extraction
     currentStage = 'uploading_gemini';
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY");
     const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
-
-    // Convert Blob to ArrayBuffer then to base64 or upload directly via Files API
-    // The Google GenAI NodeJS SDK supports File/Blob in some envs, but in Deno we might need to be careful.
-    // The previous code used `client.files.upload`. Let's use the same.
-
-    // Note: client.files.upload expects a `Blob` or `File`.
-    // In Deno, `fileBlob` is a Blob.
-    // EDGE-01: Use fileBlob.type (not .mime_type) with fallback to document.mime_type
-    const mimeType = fileBlob.type || document.mime_type;
     uploadedFile = await genAI.files.upload({
       file: new File([fileBlob], document.filename, { type: mimeType }),
       config: {
@@ -127,6 +158,9 @@ Deno.serve(async (req) => {
       .update({ processing_stage: "extracting text" })
       .eq("id", document.id);
 
+    // EDGE-03: Use file-type specific extraction prompt
+    const extractionPrompt = getExtractionPrompt(mimeType);
+
     const extractResult = await genAI.models.generateContent({
       model: GEMINI_MODEL_EXTRACT,
       contents: [
@@ -139,7 +173,7 @@ Deno.serve(async (req) => {
               },
             },
             {
-              text: "Extract all the text from this document. Return only the text content. Do not include any markdown formatting or introductory text, just the raw content.",
+              text: extractionPrompt,
             },
           ],
         },
@@ -148,6 +182,17 @@ Deno.serve(async (req) => {
 
     const textContent = extractResult.text || "";
     console.log(`Extracted text length: ${textContent.length}`);
+
+    // EDGE-03: Heuristic to detect image-only PDFs
+    // If extracted text is very short relative to file size, it's likely image-only
+    const bytesPerChar = fileBlob.size / Math.max(textContent.length, 1);
+    if (bytesPerChar > 1000 && textContent.trim().length < 100) {
+      throw new Error(
+        "This PDF appears to contain only images. " +
+        "Text-based PDFs are required for embedding. " +
+        "Please upload a PDF with selectable text."
+      );
+    }
 
     // Validate we got meaningful content
     if (!textContent || textContent.trim().length < 50) {
