@@ -107,6 +107,60 @@ export async function getDocumentDownloadUrlAction(documentId: string) {
     }
 }
 
+// Create document record after direct browser upload (for files > 1MB)
+export async function createDocumentRecordAction(
+    storagePath: string,
+    filename: string,
+    mimeType: string,
+    projectId: string | null
+) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const { data: document, error: dbError } = await supabase
+            .from("documents")
+            .insert({
+                storage_path: storagePath,
+                filename: filename,
+                mime_type: mimeType,
+                project_id: projectId || null,
+                status: 'pending'
+            })
+            .select()
+            .single();
+
+        if (dbError) {
+            // If DB insert fails, we need to clean up the storage file
+            // that was uploaded directly by the browser
+            console.error("DB insert failed after direct upload, cleaning up storage:", storagePath);
+            try {
+                await supabase.storage
+                    .from('project-files')
+                    .remove([storagePath]);
+                console.log("Storage cleanup successful for:", storagePath);
+            } catch (cleanupError) {
+                console.error("Storage cleanup failed:", cleanupError);
+            }
+            throw new Error(`Database error: ${dbError.message}`);
+        }
+
+        if (projectId) {
+            revalidatePath(`/projects/${projectId}`);
+        }
+        revalidatePath('/documents');
+        return { success: true, document };
+    } catch (error: any) {
+        console.error("Create Document Record Error", error);
+        return {
+            error: error.message || "Unknown error occurred",
+            code: "ERR_DATABASE",
+            rolledBack: true
+        };
+    }
+}
+
 export async function reprocessDocumentAction(documentId: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

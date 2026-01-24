@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { uploadDocumentAction, deleteDocumentAction } from '@/app/actions/documents';
+import { uploadDocumentAction, deleteDocumentAction, createDocumentRecordAction } from '@/app/actions/documents';
+import { createClient } from '@/utils/supabase/client';
+
+// Files larger than 1MB use direct browser upload to bypass Next.js server action limit
+const DIRECT_UPLOAD_THRESHOLD = 1 * 1024 * 1024;
 import {
   Dialog,
   DialogContent,
@@ -115,14 +119,22 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
 
     // Retry upload for a single file
     async function retryUpload(file: File) {
-        const singleFormData = new FormData();
-        singleFormData.append('file', file);
-        if (projectId) {
-            singleFormData.append('projectId', projectId);
-        }
-
         const toastId = toast.loading(`Retrying ${file.name}...`);
-        const result = await uploadDocumentAction(singleFormData);
+
+        let result: { error?: string; code?: string; rolledBack?: boolean; success?: boolean };
+
+        if (file.size > DIRECT_UPLOAD_THRESHOLD) {
+            // Large file: direct browser upload
+            result = await uploadDirectToBrowser(file);
+        } else {
+            // Small file: server action
+            const singleFormData = new FormData();
+            singleFormData.append('file', file);
+            if (projectId) {
+                singleFormData.append('projectId', projectId);
+            }
+            result = await uploadDocumentAction(singleFormData);
+        }
 
         if (result.error) {
             showErrorToast(file, result, toastId);
@@ -180,13 +192,20 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
             setCurrentFileName(file.name);
             setCompletedFiles(i);
 
-            const singleFormData = new FormData();
-            singleFormData.append('file', file);
-            if (projectId) {
-                singleFormData.append('projectId', projectId);
-            }
+            let result: { error?: string; code?: string; rolledBack?: boolean; success?: boolean };
 
-            const result = await uploadDocumentAction(singleFormData);
+            if (file.size > DIRECT_UPLOAD_THRESHOLD) {
+                // Large file: upload directly to Supabase Storage, then create DB record
+                result = await uploadDirectToBrowser(file);
+            } else {
+                // Small file: use server action (includes file in request body)
+                const singleFormData = new FormData();
+                singleFormData.append('file', file);
+                if (projectId) {
+                    singleFormData.append('projectId', projectId);
+                }
+                result = await uploadDocumentAction(singleFormData);
+            }
 
             if (result.error) {
                 newFailedFiles.push(file);
@@ -231,6 +250,38 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         }
 
         await processFiles(files);
+    }
+
+    // Direct browser upload for large files (bypasses Next.js server action size limit)
+    async function uploadDirectToBrowser(file: File): Promise<{ error?: string; code?: string; rolledBack?: boolean; success?: boolean }> {
+        const supabase = createClient();
+        const folder = projectId || 'global';
+        const storagePath = `${folder}/${file.name}`;
+
+        // 1. Upload directly to Supabase Storage
+        const { error: storageError } = await supabase.storage
+            .from('project-files')
+            .upload(storagePath, file, {
+                upsert: true,
+                contentType: file.type
+            });
+
+        if (storageError) {
+            return {
+                error: `Storage upload failed: ${storageError.message}`,
+                code: 'ERR_STORAGE'
+            };
+        }
+
+        // 2. Create DB record via server action (handles rollback if DB fails)
+        const result = await createDocumentRecordAction(
+            storagePath,
+            file.name,
+            file.type || 'application/pdf',
+            projectId || null
+        );
+
+        return result;
     }
 
     const openDeleteConfirm = (docId: string) => {
