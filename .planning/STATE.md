@@ -1,9 +1,9 @@
 # Project State: Gehalt-Pflege Document Pipeline
 
 **Project:** Gehalt-Pflege Document Pipeline
-**Current Phase:** 2
-**Current Plan:** 02
-**Status:** In Progress
+**Current Phase:** 2 (Complete)
+**Current Plan:** None
+**Status:** Phase 2 Complete
 
 ## Project Reference
 
@@ -11,27 +11,25 @@
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** Phase 2 - Atomic File Operations
-
-Building upload, delete, and download operations with compensating transactions.
+**Current focus:** Phase 2 Complete - Ready for Phase 3
 
 ## Current Position
 
-**Phase 2 of 6:** Atomic File Operations
+**Phase 2 of 6:** Atomic File Operations ✓ Complete
 
 **Goal:** Admins can upload, delete, and download documents with compensating transactions that prevent orphaned files or database records.
 
-**Last activity:** 2026-01-23 - Completed 02-02-PLAN.md (Delete & Download Enhancement)
+**Last activity:** 2026-01-24 - Phase 2 verified and complete
 
-**Next action:** Execute remaining Phase 2 plans (02-03 if exists, otherwise Phase 3)
+**Next action:** Run `/gsd:discuss-phase 3` or `/gsd:plan-phase 3`
 
 ## Progress
 
 ```
-[████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░] 37.5% (3/8 plans)
+[██████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 33.3% (2/6 phases)
 
 Phase 1: Database & Storage Foundation ........ ✓ Complete | 1/1 plans
-Phase 2: Atomic File Operations ............... ◐ In Progress | 2/3 plans
+Phase 2: Atomic File Operations ............... ✓ Complete | 3/3 plans
 Phase 3: Status & Error Tracking .............. ○ Pending | 0/0 plans
 Phase 4: Edge Function Processing ............. ○ Pending | 0/0 plans
 Phase 5: Error Recovery ....................... ○ Pending | 0/0 plans
@@ -41,17 +39,11 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 | Phase | Status | Plans | Requirements | Progress |
 |-------|--------|-------|--------------|----------|
 | 1 | ✓ Complete | 1/1 | 3 (DB-01, DB-02, DB-03) | 100% |
-| 2 | ◐ In Progress | 2/3 | 5 (FILE-01✓, FILE-02✓, FILE-03✓, ERR-02✓, ERR-03✓) | 67% |
+| 2 | ✓ Complete | 3/3 | 5 (FILE-01✓, FILE-02✓, FILE-03✓, ERR-02✓, ERR-03✓) | 100% |
 | 3 | ○ Pending | 0/0 | 3 (STAT-01, STAT-02, STAT-03) | 0% |
 | 4 | ○ Pending | 0/0 | 4 (EDGE-01, EDGE-02, EDGE-03, EDGE-04) | 0% |
 | 5 | ○ Pending | 0/0 | 1 (ERR-01) | 0% |
 | 6 | ○ Pending | 0/0 | 0 (integration) | 0% |
-
-## Performance Metrics
-
-**Velocity:** 2.3 minutes per plan (3 plans in 7.7 minutes)
-**Quality:** 100% (3/3 plans completed successfully)
-**Milestone progress:** 1.7/6 phases complete (28.3%)
 
 ## Accumulated Context
 
@@ -84,6 +76,7 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 | DB-first delete pattern | Orphaned storage files are recoverable (cleanup job); orphaned DB records cause user errors | 2026-01-23 |
 | 5-minute signed URL expiry | Security-first approach - shorter expiry reduces risk of URL sharing vs convenience | 2026-01-23 |
 | Separate view vs download actions | Different user intentions - view for quick check (browser), download for saving | 2026-01-23 |
+| Direct browser upload for files >1MB | Bypasses Next.js server action size limit using Supabase browser client | 2026-01-24 |
 
 ### Active TODOs
 
@@ -92,6 +85,14 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 - [x] Run verification queries to confirm fixes
 - [ ] Test edge function with real document upload to verify chunks are inserted (can test during Phase 4)
 
+**Phase 2 complete:**
+- [x] Upload validation (size, MIME type)
+- [x] Drag-drop upload zone with batch progress
+- [x] Rollback visibility in error toasts
+- [x] DB-first atomic delete
+- [x] 5-minute signed URL downloads
+- [x] Direct browser upload for large files (>1MB)
+
 **Deferred to later phases:**
 - Monitoring tools (stale document detection, processing duration metrics) - v2
 - Optimization (progress tracking, rate limiting, orphan cleanup) - v2
@@ -99,32 +100,30 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/0 plans
 
 ### Blockers
 
-None. Phase 1 is complete and verified. Ready to proceed with Phase 2.
+None. Phase 2 is complete and verified. Ready to proceed with Phase 3.
 
 ### Open Questions
 
-1. Has text-embedding-004 been deprecated? (Research noted Jan 14, 2026 deprecation; today is Jan 23) - need to verify model availability during Phase 4
+1. Has text-embedding-004 been deprecated? (Research noted Jan 14, 2026 deprecation; today is Jan 24) - need to verify model availability during Phase 4
 2. What are actual edge function timeout limits under load? (Documentation: 150s free tier, 400s Pro) - need load testing with 100+ page PDFs
-3. Should we migrate to SECURITY DEFINER functions instead of fixing RLS policies? - decision needed during Phase 1 planning
 
 ## Session Continuity
 
-**Last command:** `/gsd:execute-plan 02-01`
+**Last command:** `/gsd:execute-phase 2`
 
-**Last session:** 2026-01-23
+**Last session:** 2026-01-24
 
-**Stopped at:** Completed 02-02-PLAN.md (Delete & Download Enhancement)
+**Stopped at:** Phase 2 complete and verified
 
 **Resume file:** None
 
 **Context for next session:**
-- Phase 2 Plan 02 complete: DB-first atomic delete, 5-minute signed URLs, enhanced UI
-- FILE-02, FILE-03, and ERR-03 requirements completed
-- Atomic delete pattern (DB-first) prevents orphaned DB records
-- URL caching with expiry tracking established for signed URLs
-- Ready to proceed with Plan 02-03 (if exists) or next phase
+- Phase 2 fully complete with all 5 requirements verified
+- Direct browser upload added for files >1MB (bypasses server action limit)
+- Issues fixed during verification: storage bucket MIME types, UPDATE policy, blob download
+- Ready for Phase 3: Status & Error Tracking
 
 ---
 
-*Last updated: 2026-01-23*
-*Phase 2 Plan 02 executed successfully - Delete & download enhancement complete*
+*Last updated: 2026-01-24*
+*Phase 2 complete - Atomic file operations verified*

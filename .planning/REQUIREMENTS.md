@@ -9,9 +9,9 @@ Requirements for the document pipeline milestone. Each maps to roadmap phases.
 
 ### File Operations
 
-- [ ] **FILE-01**: Admin can upload documents (PDF, text, spreadsheets) with size/type validation
-- [ ] **FILE-02**: Admin can delete document atomically (storage file + DB record + chunks removed together)
-- [ ] **FILE-03**: Admin can download document via time-limited signed URL
+- [x] **FILE-01**: Admin can upload documents (PDF, text, spreadsheets) with size/type validation
+- [x] **FILE-02**: Admin can delete document atomically (storage file + DB record + chunks removed together)
+- [x] **FILE-03**: Admin can download document via time-limited signed URL
 
 ### Status Tracking
 
@@ -22,8 +22,8 @@ Requirements for the document pipeline milestone. Each maps to roadmap phases.
 ### Error Recovery
 
 - [ ] **ERR-01**: Admin can reprocess failed documents (reset to pending, re-trigger pipeline)
-- [ ] **ERR-02**: Upload failure rolls back: if DB insert fails, storage file is deleted
-- [ ] **ERR-03**: Delete failure is atomic: storage and DB deletion succeed together or both fail
+- [x] **ERR-02**: Upload failure rolls back: if DB insert fails, storage file is deleted
+- [x] **ERR-03**: Delete failure is atomic: storage and DB deletion succeed together or both fail
 
 ### Edge Function Processing
 
@@ -81,11 +81,11 @@ Which phases cover which requirements. Updated after roadmap creation.
 | DB-01 | Phase 1 | Complete |
 | DB-02 | Phase 1 | Complete |
 | DB-03 | Phase 1 | Complete |
-| FILE-01 | Phase 2 | Pending |
-| FILE-02 | Phase 2 | Pending |
-| FILE-03 | Phase 2 | Pending |
-| ERR-02 | Phase 2 | Pending |
-| ERR-03 | Phase 2 | Pending |
+| FILE-01 | Phase 2 | Complete |
+| FILE-02 | Phase 2 | Complete |
+| FILE-03 | Phase 2 | Complete |
+| ERR-02 | Phase 2 | Complete |
+| ERR-03 | Phase 2 | Complete |
 | STAT-01 | Phase 3 | Pending |
 | STAT-02 | Phase 3 | Pending |
 | STAT-03 | Phase 3 | Pending |
@@ -110,4 +110,4 @@ Which phases cover which requirements. Updated after roadmap creation.
 
 ---
 *Requirements defined: 2026-01-23*
-*Last updated: 2026-01-23 after roadmap creation*
+*Last updated: 2026-01-24 - Phase 2 requirements complete*

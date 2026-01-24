@@ -23,7 +23,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 | Phase | Status | Plans | Progress |
 |-------|--------|-------|----------|
 | 1 | ✓ Complete | 1/1 | 100% |
-| 2 | ○ Pending | 0/3 | 0% |
+| 2 | ✓ Complete | 3/3 | 100% |
 | 3 | ○ Pending | 0/0 | 0% |
 | 4 | ○ Pending | 0/0 | 0% |
 | 5 | ○ Pending | 0/0 | 0% |
@@ -71,9 +71,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md - Upload service with drag-drop UI, validation, and rollback visibility
-- [ ] 02-02-PLAN.md - Atomic delete (DB-first) and 5-minute signed URL downloads
-- [ ] 02-03-PLAN.md - Human verification of complete file operations workflow
+- [x] 02-01-PLAN.md - Upload service with drag-drop UI, validation, and rollback visibility
+- [x] 02-02-PLAN.md - Atomic delete (DB-first) and 5-minute signed URL downloads
+- [x] 02-03-PLAN.md - Human verification of complete file operations workflow
 
 **Success Criteria:**
 1. User can upload a PDF and see it appear in the documents list

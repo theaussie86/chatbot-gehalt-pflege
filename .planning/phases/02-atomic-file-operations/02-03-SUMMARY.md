@@ -64,6 +64,10 @@
 | ERR-02: Rollback visibility | ✓ Verified |
 | ERR-03: Delete atomicity | ✓ Verified |
 
-## Known Limitation
+## Post-Verification Enhancement
 
-**Next.js Server Action 1MB limit**: Files larger than ~1MB hit the server action body size limit. User has requested direct browser upload implementation as a follow-up task.
+**Direct browser upload for large files** (commit `c5ed409`):
+- Files >1MB now upload directly to Supabase Storage using browser client
+- DB record created via server action after storage upload
+- Server action handles rollback if DB insert fails
+- Resolves Next.js server action ~1MB body size limit
