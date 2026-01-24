@@ -25,7 +25,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 | 1 | ✓ Complete | 1/1 | 100% |
 | 2 | ✓ Complete | 3/3 | 100% |
 | 3 | ✓ Complete | 3/3 | 100% |
-| 4 | ○ Pending | 0/0 | 0% |
+| 4 | ○ Pending | 0/4 | 0% |
 | 5 | ○ Pending | 0/0 | 0% |
 | 6 | ○ Pending | 0/0 | 0% |
 
@@ -126,6 +126,14 @@ Plans:
 - **EDGE-02**: Batch embedding uses Promise.allSettled for partial failure tolerance
 - **EDGE-03**: Gemini uploaded files are cleaned up in finally block (even on error)
 - **EDGE-04**: Chunks are inserted into document_chunks table with correct embeddings
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Fix Blob MIME type, error handling, request body parsing
+- [ ] 04-02-PLAN.md — Defensive embedding parsing and Promise.allSettled batch processing
+- [ ] 04-03-PLAN.md — Improved chunking and file type handling
+- [ ] 04-04-PLAN.md — Deploy and verify end-to-end processing
 
 **Success Criteria:**
 1. Document uploaded triggers edge function execution (verified via Supabase function logs)
