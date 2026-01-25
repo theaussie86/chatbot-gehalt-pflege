@@ -1,9 +1,9 @@
 # Project State: Gehalt-Pflege Document Pipeline
 
 **Project:** Gehalt-Pflege Document Pipeline
-**Current Phase:** 6 (In Progress)
-**Current Plan:** 06-01 (Complete)
-**Status:** Phase 6 In Progress
+**Current Phase:** 6 (Complete)
+**Current Plan:** 06-02 (Complete)
+**Status:** Phase 6 Complete
 
 ## Project Reference
 
@@ -15,25 +15,25 @@
 
 ## Current Position
 
-**Phase 6 of 6:** RAG Integration (In Progress)
+**Phase 6 of 6:** RAG Integration (Complete)
 
 **Goal:** Documents are used as context in chatbot responses with proper citations.
 
-**Last activity:** 2026-01-25 - Completed 06-01-PLAN.md (metadata-aware semantic search)
+**Last activity:** 2026-01-25 - Completed 06-02-PLAN.md (RAG citations and cache invalidation)
 
-**Next action:** Continue Phase 6 execution
+**Next action:** Project complete - all 6 phases finished
 
 ## Progress
 
 ```
-[██████████████████████████████████████████████████████░░] 91.7% (5.5/6 phases complete)
+[████████████████████████████████████████████████████████] 100% (6/6 phases complete)
 
 Phase 1: Database & Storage Foundation ........ ✓ Complete | 1/1 plans
 Phase 2: Atomic File Operations ............... ✓ Complete | 3/3 plans
 Phase 3: Status & Error Tracking .............. ✓ Complete | 3/3 plans
 Phase 4: Edge Function Processing ............. ✓ Complete | 4/4 plans
 Phase 5: Error Recovery ....................... ✓ Complete | 1/1 plans
-Phase 6: RAG Integration ...................... ◐ In Progress | 1/2 plans
+Phase 6: RAG Integration ...................... ✓ Complete | 2/2 plans
 ```
 
 | Phase | Status | Plans | Requirements | Progress |
@@ -43,7 +43,7 @@ Phase 6: RAG Integration ...................... ◐ In Progress | 1/2 plans
 | 3 | ✓ Complete | 3/3 | 3 (STAT-01✓, STAT-02✓, STAT-03✓) | 100% |
 | 4 | ✓ Complete | 4/4 | 4 (EDGE-01✓, EDGE-02✓, EDGE-03✓, EDGE-04✓) | 100% |
 | 5 | ✓ Complete | 1/1 | 1 (ERR-01✓) | 100% |
-| 6 | ◐ In Progress | 1/2 | 1 (RAG-01✓) | 50% |
+| 6 | ✓ Complete | 2/2 | 2 (RAG-01✓, RAG-02✓) | 100% |
 
 ## Accumulated Context
 
@@ -105,6 +105,9 @@ Phase 6: RAG Integration ...................... ◐ In Progress | 1/2 plans
 | Legacy error format conversion on reprocess | Single error object converted to array format on first reprocess for seamless transition | 2026-01-25 |
 | Filter by status='embedded' in search | Only embedded documents searchable to exclude failed/processing documents from results | 2026-01-25 |
 | Preserve existing query() method | Maintain backward compatibility by adding queryWithMetadata() rather than modifying existing method | 2026-01-25 |
+| 0.75 similarity threshold for RAG | Filters low-quality matches to avoid irrelevant RAG results in chat responses | 2026-01-25 |
+| Numbered citation format | [Quelle N: filename] provides clear, user-friendly source attribution in responses | 2026-01-25 |
+| Cache invalidation on document changes | Ensures users never get stale answers referencing deleted/changed documents | 2026-01-25 |
 
 ### Active TODOs
 
@@ -142,12 +145,16 @@ Phase 6: RAG Integration ...................... ◐ In Progress | 1/2 plans
 - [x] UI display of all retry attempts
 - [ ] Deploy updated edge function (manual step required)
 
-**Phase 6 in progress:**
+**Phase 6 complete:**
 - [x] Plan 01: Metadata-aware semantic search
   - [x] match_documents_with_metadata SQL function
   - [x] queryWithMetadata() method in VectorstoreService
-  - [ ] Apply SQL migration to Supabase
-- [ ] Plan 02: Citation integration in GeminiAgent
+  - [ ] Apply SQL migration to Supabase (manual step)
+- [x] Plan 02: RAG citations and cache invalidation
+  - [x] queryWithMetadata() integrated in chat route
+  - [x] Similarity threshold filtering (0.75)
+  - [x] Citation formatting with source filenames
+  - [x] Cache invalidation on delete/reprocess/bulk-delete
 
 **Deferred to later phases:**
 - Monitoring tools (stale document detection, processing duration metrics) - v2
@@ -174,26 +181,27 @@ Phase 6: RAG Integration ...................... ◐ In Progress | 1/2 plans
 
 ## Session Continuity
 
-**Last command:** `/gsd:execute-plan 06-01`
+**Last command:** `/gsd:execute-plan 06-02`
 
 **Last session:** 2026-01-25
 
-**Stopped at:** Completed 06-01-PLAN.md - Metadata-aware semantic search
+**Stopped at:** Completed 06-02-PLAN.md - RAG citations and cache invalidation
 
 **Resume file:** None
 
 **Context for next session:**
-- **Plan 06-01 complete (2 min)** - Metadata-aware semantic search:
-  - match_documents_with_metadata SQL function created
-  - VectorstoreService.queryWithMetadata() method added
-  - Returns documentId, filename, chunkIndex for citations
-  - Filters by status='embedded' to exclude failed documents
+- **Plan 06-02 complete (1 min)** - RAG citations and cache invalidation:
+  - Chat route uses queryWithMetadata() with 0.75 similarity threshold
+  - Responses include numbered citations: [Quelle N: filename]
+  - Cache invalidation on delete/reprocess/bulk-delete
+  - Graceful fallback when no relevant documents found
   - TypeScript compiles without errors
-  - SQL migration needs manual application in Supabase
-- **Next:** Plan 06-02 to integrate queryWithMetadata() into GeminiAgent RAG flow and format citations
-- **Blockers:** SQL migration needs manual application via Supabase SQL Editor
+- **Phase 6 complete - All 6 phases finished!**
+- **Blockers:**
+  - SQL migration needs manual application via Supabase SQL Editor
+  - Edge function deployment needed for error history tracking
 
 ---
 
 *Last updated: 2026-01-25*
-*Phase 6 in progress - 1/2 plans complete*
+*Phase 6 complete - All phases finished!*
