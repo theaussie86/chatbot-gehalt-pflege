@@ -190,6 +190,13 @@ const DocumentDetailsPanel = ({
         });
     };
 
+    // Normalize error_details to array format for consistent rendering
+    const errorHistory: ErrorDetail[] = useMemo(() => {
+        if (!document.error_details) return [];
+        if (Array.isArray(document.error_details)) return document.error_details;
+        return [document.error_details]; // Legacy single object
+    }, [document.error_details]);
+
     return (
         <div className="space-y-6 py-4">
             {/* Filename */}
@@ -240,30 +247,41 @@ const DocumentDetailsPanel = ({
             </div>
 
             {/* Error Details (only if status is error) */}
-            {document.status === 'error' && document.error_details && (
+            {document.status === 'error' && errorHistory.length > 0 && (
                 <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Error Details</p>
-                    <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg p-4 space-y-2">
-                        {document.error_details.message && (
-                            <p className="text-sm text-rose-700 dark:text-rose-300 font-medium">
-                                {document.error_details.message}
-                            </p>
-                        )}
-                        {document.error_details.code && (
-                            <p className="text-xs text-rose-600 dark:text-rose-400">
-                                <span className="font-medium">Code:</span> {document.error_details.code}
-                            </p>
-                        )}
-                        {document.error_details.stage && (
-                            <p className="text-xs text-rose-600 dark:text-rose-400">
-                                <span className="font-medium">Failed at:</span> {document.error_details.stage}
-                            </p>
-                        )}
-                        {document.error_details.timestamp && (
-                            <p className="text-xs text-rose-600 dark:text-rose-400">
-                                <span className="font-medium">Time:</span> {formatDate(document.error_details.timestamp)}
-                            </p>
-                        )}
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Error Details {errorHistory.length > 1 && `(${errorHistory.length} attempts)`}
+                    </p>
+                    <div className="space-y-3">
+                        {errorHistory.map((err, idx) => (
+                            <div key={idx} className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg p-4 space-y-2">
+                                {errorHistory.length > 1 && (
+                                    <p className="text-xs text-rose-500 dark:text-rose-400 font-semibold">
+                                        Attempt {err.attempt ?? idx + 1}
+                                    </p>
+                                )}
+                                {err.message && (
+                                    <p className="text-sm text-rose-700 dark:text-rose-300 font-medium">
+                                        {err.message}
+                                    </p>
+                                )}
+                                {err.code && (
+                                    <p className="text-xs text-rose-600 dark:text-rose-400">
+                                        <span className="font-medium">Code:</span> {err.code}
+                                    </p>
+                                )}
+                                {err.stage && (
+                                    <p className="text-xs text-rose-600 dark:text-rose-400">
+                                        <span className="font-medium">Failed at:</span> {err.stage}
+                                    </p>
+                                )}
+                                {err.timestamp && (
+                                    <p className="text-xs text-rose-600 dark:text-rose-400">
+                                        <span className="font-medium">Time:</span> {formatDate(err.timestamp)}
+                                    </p>
+                                )}
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
@@ -289,6 +307,16 @@ const DocumentDetailsPanel = ({
     );
 };
 
+// Error detail type for array format support
+interface ErrorDetail {
+    attempt?: number;
+    code?: string;
+    message?: string;
+    timestamp?: string;
+    stage?: string;
+    details?: any;
+}
+
 interface Document {
     id: string;
     filename: string;
@@ -299,13 +327,7 @@ interface Document {
     status: 'pending' | 'processing' | 'embedded' | 'error';
     chunk_count?: number | null;
     processing_stage?: string | null;
-    error_details?: {
-        code?: string;
-        message?: string;
-        timestamp?: string;
-        stage?: string;
-        details?: any;
-    } | null;
+    error_details?: ErrorDetail[] | ErrorDetail | null;
 }
 
 interface DocumentManagerProps {
