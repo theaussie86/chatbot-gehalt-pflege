@@ -208,6 +208,64 @@ export class VectorstoreService {
   }
 
   /**
+   * Query vectorstore with full metadata for citation attribution
+   * @param question The user's question
+   * @param projectId The project ID for filtering
+   * @param topK Number of top results to return (default: 3)
+   * @returns Array of results with content, similarity score, and metadata for citations
+   */
+  async queryWithMetadata(
+    question: string,
+    projectId: string,
+    topK = 3
+  ): Promise<Array<{
+    content: string;
+    similarity: number;
+    metadata: {
+      documentId: string;
+      filename: string;
+      chunkIndex: number;
+    }
+  }>> {
+    try {
+      // 1. Generate embedding for question
+      const embedding = await this.generateEmbedding(question);
+
+      // 2. Semantic search with metadata join
+      const { data: results, error } = await this.supabase.rpc('match_documents_with_metadata', {
+        query_embedding: embedding,
+        match_threshold: 0.7,
+        match_count: topK,
+        filter_project_id: projectId
+      });
+
+      if (error) {
+        console.error('[VectorstoreService] Metadata search error:', error);
+        return [];
+      }
+
+      if (!results || results.length === 0) {
+        return [];
+      }
+
+      // 3. Format results with metadata
+      return results.map((r: any) => ({
+        content: r.content,
+        similarity: r.similarity,
+        metadata: {
+          documentId: r.document_id,
+          filename: r.filename,
+          chunkIndex: r.chunk_index
+        }
+      }));
+
+    } catch (error) {
+      console.error('[VectorstoreService] Query with metadata failed:', error);
+      return [];
+    }
+  }
+
+  /**
    * Enrich/validate extracted values using vectorstore context
    * @param field The field name being validated
    * @param rawValue The raw value from user input
