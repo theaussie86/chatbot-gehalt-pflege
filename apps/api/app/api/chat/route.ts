@@ -14,9 +14,9 @@ let supabaseAdminInstance: SupabaseClient | null = null;
 function getSupabaseAdmin() {
     if (!supabaseAdminInstance) {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const key = process.env.SUPABASE_SERVICE_KEY;
+        const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (!url || !key) {
-            throw new Error("Supabase credentials (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_KEY) are missing.");
+            throw new Error("Supabase credentials (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) are missing.");
         }
         supabaseAdminInstance = createClient(url, key);
     }
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
             const conversationAnalyzer = new ConversationAnalyzer();
             const vectorstore = new VectorstoreService(
                 process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.SUPABASE_SERVICE_KEY!
+                process.env.SUPABASE_SERVICE_ROLE_KEY!
             );
             const responseValidator = new ResponseValidator(vectorstore);
 
@@ -198,31 +198,53 @@ export async function POST(request: Request) {
                 });
             }
 
-            // --- US-007: HANDLE QUESTION INTENT ---
+            // --- US-007: HANDLE QUESTION INTENT WITH RAG + CITATIONS ---
             if (nextFormState.userIntent === 'question') {
-                // Query vectorstore for answer
-                const vectorstoreAnswer = await vectorstore.query(message, activeProjectId);
+                // Query vectorstore with metadata for citation attribution
+                const ragResults = await vectorstore.queryWithMetadata(message, activeProjectId, 3);
+
+                // Filter by similarity threshold to avoid noise
+                const relevantResults = ragResults.filter(r => r.similarity >= 0.75);
+
+                // Build context section with citations
+                let contextSection = '';
+                if (relevantResults.length > 0) {
+                    contextSection = `
+Relevante Informationen aus hochgeladenen Dokumenten:
+
+${relevantResults.map((r, i) => `
+[Quelle ${i + 1}: ${r.metadata.filename}]
+${r.content}
+`).join('\n---\n')}
+`;
+                } else {
+                    contextSection = 'Hinweis: Ich habe keine relevanten Informationen in den hochgeladenen Dokumenten gefunden.';
+                }
 
                 const questionPrompt = `
-                    Du bist ein freundlicher Gehalts-Chatbot für Pflegekräfte.
-                    Der Nutzer hat eine Frage gestellt.
+Du bist ein freundlicher Gehalts-Chatbot fuer Pflegekraefte.
+Der Nutzer hat eine Frage gestellt.
 
-                    Nutzer-Frage: "${message}"
+Nutzer-Frage: "${message}"
 
-                    Relevante Informationen aus der Wissensdatenbank:
-                    ${vectorstoreAnswer}
+${contextSection}
 
-                    Aktueller Status: Wir sind im Schritt "${nextFormState.section}".
-                    Noch fehlende Informationen: ${nextFormState.missingFields?.join(', ') || 'keine'}
+Aktueller Status: Wir sind im Schritt "${nextFormState.section}".
+Noch fehlende Informationen: ${nextFormState.missingFields?.join(', ') || 'keine'}
 
-                    Aufgabe:
-                    1. Beantworte die Frage kurz und präzise basierend auf den Informationen
-                    2. Kehre dann sanft zum Interview zurück und frage nach den fehlenden Daten
+Aufgabe:
+1. Beantworte die Frage kurz und praezise basierend auf den Informationen aus den Dokumenten
+2. Zitiere die Quelle am Ende deiner Antwort (z.B. "Quelle: Dokument.pdf")
+3. Wenn keine relevanten Informationen gefunden wurden, sage das ehrlich
+4. Kehre dann sanft zum Interview zurueck und frage nach den fehlenden Daten
 
-                    WICHTIG: Frage nicht nach technischen Begriffen wie "Entgeltgruppe" oder "Stufe".
-                    Frage stattdessen nach dem Beruf, der Ausbildung, den Arbeitsstunden, etc.
+WICHTIG:
+- Frage nicht nach technischen Begriffen wie "Entgeltgruppe" oder "Stufe"
+- Frage stattdessen nach dem Beruf, der Ausbildung, den Arbeitsstunden, etc.
+- Antworte NUR mit Informationen aus den bereitgestellten Quellen
+- Bei Unsicherheit: "Dazu habe ich keine Informationen in meinen Dokumenten."
 
-                    Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
+Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                 `;
 
                 const responseResult = await client.models.generateContent({
