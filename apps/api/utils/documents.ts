@@ -22,7 +22,7 @@ export const ERROR_CODES = {
 } as const;
 
 // Constants
-const MAX_FILE_SIZE = 52428800; // 50MB in bytes
+const MAX_FILE_SIZE = 52428800;
 const ALLOWED_MIME_TYPES = [
     'application/pdf',
     'text/plain',
