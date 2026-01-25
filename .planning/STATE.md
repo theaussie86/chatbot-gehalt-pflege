@@ -1,9 +1,9 @@
 # Project State: Gehalt-Pflege Document Pipeline
 
 **Project:** Gehalt-Pflege Document Pipeline
-**Current Phase:** 4 (Complete)
-**Current Plan:** 04-04 (Complete)
-**Status:** Phase 4 Complete
+**Current Phase:** 5 (In Progress)
+**Current Plan:** 05-01 (Complete)
+**Status:** Phase 5 In Progress
 
 ## Project Reference
 
@@ -11,28 +11,28 @@
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** Phase 4 - Edge Function Processing (Complete)
+**Current focus:** Phase 5 - Error Recovery (In Progress)
 
 ## Current Position
 
-**Phase 4 of 6:** Edge Function Processing (Complete)
+**Phase 5 of 6:** Error Recovery (In Progress)
 
-**Goal:** Edge function reliably processes documents into searchable chunks with proper error handling.
+**Goal:** Admins can recover from processing failures without re-uploading documents.
 
-**Last activity:** 2026-01-25 - Completed 04-04-PLAN.md (deploy and verify E2E processing)
+**Last activity:** 2026-01-25 - Completed 05-01-PLAN.md (reprocess workflow with error history)
 
-**Next action:** Plan Phase 5 (Error Recovery) or Phase 6 (RAG Integration)
+**Next action:** Check if Phase 5 has additional plans, or proceed to Phase 6 (RAG Integration)
 
 ## Progress
 
 ```
-[████████████████████████████████████████████████░░░░░░░░] 66.7% (4/6 phases complete)
+[████████████████████████████████████████████████████░░░░] 83.3% (5/6 phases complete)
 
 Phase 1: Database & Storage Foundation ........ ✓ Complete | 1/1 plans
 Phase 2: Atomic File Operations ............... ✓ Complete | 3/3 plans
 Phase 3: Status & Error Tracking .............. ✓ Complete | 3/3 plans
 Phase 4: Edge Function Processing ............. ✓ Complete | 4/4 plans
-Phase 5: Error Recovery ....................... ○ Pending | 0/? plans
+Phase 5: Error Recovery ....................... ✓ Complete | 1/1 plans
 Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 ```
 
@@ -42,7 +42,7 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 | 2 | ✓ Complete | 3/3 | 5 (FILE-01✓, FILE-02✓, FILE-03✓, ERR-02✓, ERR-03✓) | 100% |
 | 3 | ✓ Complete | 3/3 | 3 (STAT-01✓, STAT-02✓, STAT-03✓) | 100% |
 | 4 | ✓ Complete | 4/4 | 4 (EDGE-01✓, EDGE-02✓, EDGE-03✓, EDGE-04✓) | 100% |
-| 5 | ○ Pending | 0/? | 1 (ERR-01) | 0% |
+| 5 | ✓ Complete | 1/1 | 1 (ERR-01✓) | 100% |
 | 6 | ○ Pending | 0/? | 0 (integration) | 0% |
 
 ## Accumulated Context
@@ -100,6 +100,9 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 | Image-only PDF heuristic | >1000 bytes/char AND <100 chars extracted detects scanned PDFs | 2026-01-24 |
 | Spreadsheet markdown extraction | File-type specific prompts convert tables to markdown format for embedding | 2026-01-24 |
 | Gemini file response structure | File upload returns file.name directly, not nested in file.file.name | 2026-01-25 |
+| Error history as array in error_details | Preserves full debugging context across multiple retry attempts; single field avoids schema changes | 2026-01-25 |
+| Chunk cleanup before reprocessing | Ensures clean slate for re-embedding; prevents orphaned chunks from failed attempts | 2026-01-25 |
+| Legacy error format conversion on reprocess | Single error object converted to array format on first reprocess for seamless transition | 2026-01-25 |
 
 ### Active TODOs
 
@@ -130,6 +133,13 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 - [x] Deploy edge function
 - [x] E2E verification passed (PDF, text files, scanned PDFs via OCR)
 
+**Phase 5 complete:**
+- [x] Plan 01: Reprocess workflow with error history
+- [x] Chunk cleanup before reprocessing
+- [x] Error history tracking in array format
+- [x] UI display of all retry attempts
+- [ ] Deploy updated edge function (manual step required)
+
 **Deferred to later phases:**
 - Monitoring tools (stale document detection, processing duration metrics) - v2
 - Optimization (progress tracking, rate limiting, orphan cleanup) - v2
@@ -137,7 +147,10 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 
 ### Blockers
 
-None. Phase 4 complete.
+**Manual deployment required:**
+- Edge function changes committed but not deployed (Supabase CLI not available in execution environment)
+- Deploy command: `supabase functions deploy process-embeddings --project-ref xjbkpfbiajcjkamvlrhw`
+- Error history tracking will work after deployment
 
 ### Open Questions
 
@@ -146,25 +159,25 @@ None. Phase 4 complete.
 
 ## Session Continuity
 
-**Last command:** `/gsd:execute-plan 04-04`
+**Last command:** `/gsd:execute-plan 05-01`
 
 **Last session:** 2026-01-25
 
-**Stopped at:** Phase 4 Complete
+**Stopped at:** Phase 5 Plan 01 Complete
 
 **Resume file:** None
 
 **Context for next session:**
-- **Phase 4 complete** - Edge function processing fully operational:
-  - Documents upload -> trigger edge function -> create chunks with 768-dim embeddings
-  - Realtime status updates visible during processing (extracting -> embedding -> embedded)
-  - Chunk count displayed in document details panel
-  - Error handling with error_details shown in UI
-  - Scanned PDFs processed via Gemini OCR (exceeded expectations)
-- **All P0 bugs fixed:** RLS, embedding parsing, Blob MIME type, Gemini response structure
-- **Ready for next phase:** Phase 5 (Error Recovery) or Phase 6 (RAG Integration)
+- **Phase 5 complete** - Error recovery workflow implemented:
+  - Admins can reprocess failed/embedded documents via Reprocess button
+  - Chunk cleanup prevents orphaned data
+  - Error history tracked as array with attempt numbers
+  - UI displays all retry attempts in stacked cards
+  - Backward compatible with single-error legacy format
+- **Deployment needed:** Edge function changes require manual deployment
+- **Ready for:** Phase 6 (RAG Integration) - documents can be reliably reprocessed if needed
 
 ---
 
 *Last updated: 2026-01-25*
-*Phase 4 complete - E2E document processing verified and operational*
+*Phase 5 complete - Error recovery workflow ready (deployment pending)*
