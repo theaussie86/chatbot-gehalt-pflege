@@ -11,7 +11,7 @@
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** Phase 6 - RAG Integration (In Progress)
+**Current focus:** All phases complete - awaiting human verification of RAG flow
 
 ## Current Position
 
@@ -31,7 +31,7 @@
 Phase 1: Database & Storage Foundation ........ ✓ Complete | 1/1 plans
 Phase 2: Atomic File Operations ............... ✓ Complete | 3/3 plans
 Phase 3: Status & Error Tracking .............. ✓ Complete | 3/3 plans
-Phase 4: Edge Function Processing ............. ✓ Complete | 4/4 plans
+Phase 4: Durable Document Processing .......... ✓ Complete | 4/4 plans
 Phase 5: Error Recovery ....................... ✓ Complete | 1/1 plans
 Phase 6: RAG Integration ...................... ✓ Complete | 2/2 plans
 ```
@@ -57,10 +57,11 @@ Phase 6: RAG Integration ...................... ✓ Complete | 2/2 plans
 
 **Post Phase 4 Complete:**
 - All P0 bugs fixed and verified
-- E2E document processing working: upload -> edge function -> chunks with 768-dim embeddings
+- E2E document processing working: upload -> Inngest pipeline -> chunks with 768-dim embeddings
 - Scanned PDFs process successfully via Gemini OCR (better than planned rejection)
 - Realtime status updates visible during processing
 - Chunk count displayed after successful embedding
+- Architecture upgraded from Edge Function to Inngest for durable execution with built-in retries
 
 ### Decisions
 
@@ -108,13 +109,16 @@ Phase 6: RAG Integration ...................... ✓ Complete | 2/2 plans
 | 0.75 similarity threshold for RAG | Filters low-quality matches to avoid irrelevant RAG results in chat responses | 2026-01-25 |
 | Numbered citation format | [Quelle N: filename] provides clear, user-friendly source attribution in responses | 2026-01-25 |
 | Cache invalidation on document changes | Ensures users never get stale answers referencing deleted/changed documents | 2026-01-25 |
+| Inngest replaces Edge Function | Durable execution with built-in retries (3 attempts), no timeout limits, better observability via dashboard | 2026-01-25 |
+| Vertex AI inline data | Use base64 inline data instead of Gemini File API for compatibility with Vertex AI | 2026-01-25 |
+| Programmatic trigger via inngest.send() | Cleaner than SQL webhook triggers; called from server actions on upload/reprocess | 2026-01-25 |
 
 ### Active TODOs
 
 **Phase 1 complete:**
 - [x] Apply migration 20260123000000_phase1_foundation.sql in Supabase SQL Editor
 - [x] Run verification queries to confirm fixes
-- [x] Test edge function with real document upload to verify chunks are inserted
+- [x] Test document processing with real document upload to verify chunks are inserted
 
 **Phase 2 complete:**
 - [x] Upload validation (size, MIME type)
@@ -135,7 +139,7 @@ Phase 6: RAG Integration ...................... ✓ Complete | 2/2 plans
 - [x] Plan 03: Improved chunking (2000/100), MIME validation, spreadsheet markdown, image-only PDF detection
 - [x] Plan 04: Deploy and verify E2E processing
 - [x] Apply migration 20260124154600_add_processing_columns.sql
-- [x] Deploy edge function
+- [x] Inngest pipeline deployed (replaced Edge Function)
 - [x] E2E verification passed (PDF, text files, scanned PDFs via OCR)
 
 **Phase 5 complete:**
@@ -143,7 +147,7 @@ Phase 6: RAG Integration ...................... ✓ Complete | 2/2 plans
 - [x] Chunk cleanup before reprocessing
 - [x] Error history tracking in array format
 - [x] UI display of all retry attempts
-- [ ] Deploy updated edge function (manual step required)
+- [x] Inngest pipeline handles reprocessing with durable execution
 
 **Phase 6 complete:**
 - [x] Plan 01: Metadata-aware semantic search
@@ -169,15 +173,14 @@ Phase 6: RAG Integration ...................... ✓ Complete | 2/2 plans
 - Project ref: xjbkpfbiajcjkamvlrhw
 - queryWithMetadata() method will work after migration applied
 
-**Manual edge function deployment required:**
-- Edge function changes committed but not deployed (Supabase CLI not available in execution environment)
-- Deploy command: `supabase functions deploy process-embeddings --project-ref xjbkpfbiajcjkamvlrhw`
-- Error history tracking will work after deployment
+**No edge function deployment needed:**
+- Edge function removed in commit 3c09ead - replaced by Inngest pipeline
+- Inngest is configured and running automatically via `/api/inngest` route
 
 ### Open Questions
 
 1. ~~Has text-embedding-004 been deprecated?~~ **RESOLVED** - Model works, E2E verified
-2. What are actual edge function timeout limits under load? (Documentation: 150s free tier, 400s Pro) - need load testing with 100+ page PDFs
+2. ~~What are actual edge function timeout limits under load?~~ **RESOLVED** - Migrated to Inngest which has no timeout limits (durable background execution)
 
 ## Session Continuity
 
@@ -190,16 +193,15 @@ Phase 6: RAG Integration ...................... ✓ Complete | 2/2 plans
 **Resume file:** None
 
 **Context for next session:**
-- **Plan 06-02 complete (1 min)** - RAG citations and cache invalidation:
+- **Plan 06-02 complete** - RAG citations and cache invalidation:
   - Chat route uses queryWithMetadata() with 0.75 similarity threshold
   - Responses include numbered citations: [Quelle N: filename]
   - Cache invalidation on delete/reprocess/bulk-delete
   - Graceful fallback when no relevant documents found
   - TypeScript compiles without errors
 - **Phase 6 complete - All 6 phases finished!**
-- **Blockers:**
-  - SQL migration needs manual application via Supabase SQL Editor
-  - Edge function deployment needed for error history tracking
+- **Architecture note:** Document processing migrated from Edge Function to Inngest for durable execution
+- **Remaining blocker:** SQL migration needs manual application via Supabase SQL Editor
 
 ---
 

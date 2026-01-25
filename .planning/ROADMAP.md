@@ -14,7 +14,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 | 1 | Database & Storage Foundation | Database schema and storage are correct and secure | DB-01, DB-02, DB-03 |
 | 2 | Atomic File Operations | Admins can upload, delete, and download documents without data loss | FILE-01, FILE-02, FILE-03, ERR-02, ERR-03 |
 | 3 | Status & Error Tracking | Documents show clear status and admins can diagnose failures | STAT-01, STAT-02, STAT-03 |
-| 4 | Edge Function Processing | Edge function creates chunks with embeddings in database | EDGE-01, EDGE-02, EDGE-03, EDGE-04 |
+| 4 | Durable Document Processing | Inngest pipeline creates chunks with embeddings in database | EDGE-01, EDGE-02, EDGE-03, EDGE-04 |
 | 5 | Error Recovery | Admins can recover from failures without re-uploading | ERR-01 |
 | 6 | RAG Integration | Chatbot uses document context to answer domain questions | (Integration phase, no new requirements) |
 
@@ -27,13 +27,13 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 | 3 | ✓ Complete | 3/3 | 100% |
 | 4 | ✓ Complete | 4/4 | 100% |
 | 5 | ✓ Complete | 1/1 | 100% |
-| 6 | ○ Pending | 0/2 | 0% |
+| 6 | ✓ Complete | 2/2 | 100% |
 
 ---
 
 ## Phase 1: Database & Storage Foundation
 
-**Goal:** Database schema and storage bucket are correctly configured with secure RLS policies that allow the edge function to insert chunks.
+**Goal:** Database schema and storage bucket are correctly configured with secure RLS policies that allow the processing pipeline to insert chunks.
 
 **Requirements:**
 - **DB-01**: Deleting a document cascades to delete all associated chunks
@@ -117,14 +117,14 @@ Plans:
 
 ---
 
-## Phase 4: Edge Function Processing
+## Phase 4: Durable Document Processing
 
-**Goal:** Edge function successfully creates chunks with embeddings in document_chunks table when triggered by document upload.
+**Goal:** Inngest pipeline successfully creates chunks with embeddings in document_chunks table when triggered by document upload.
 
 **Requirements:**
-- **EDGE-01**: Edge function parses embedding API response defensively (handles structure variations)
+- **EDGE-01**: Processing pipeline parses embedding API response defensively (handles structure variations)
 - **EDGE-02**: Batch embedding uses Promise.allSettled for partial failure tolerance
-- **EDGE-03**: Gemini uploaded files are cleaned up in finally block (even on error)
+- **EDGE-03**: Durable steps with automatic retries (up to 3 attempts per step)
 - **EDGE-04**: Chunks are inserted into document_chunks table with correct embeddings
 
 **Plans:** 4 plans
@@ -136,18 +136,20 @@ Plans:
 - [x] 04-04-PLAN.md — Deploy and verify end-to-end processing
 
 **Success Criteria:**
-1. Document uploaded triggers edge function execution (verified via Supabase function logs)
-2. Edge function downloads file, extracts text via Gemini, and creates chunks
+1. Document uploaded triggers Inngest workflow (verified via Inngest dashboard)
+2. Pipeline downloads file, extracts text via Gemini, and creates chunks
 3. Chunks appear in document_chunks table with 768-dimensional embeddings
 4. Partial batch failure (1 chunk fails out of 100) doesn't kill entire document processing
-5. Gemini File API files are cleaned up even when function crashes mid-execution
+5. Durable execution with automatic retries handles transient failures
 
 **Dependencies:**
 - Phase 1 (requires RLS policies fixed)
 - Phase 2 (requires upload service creating documents)
-- Webhook trigger setup (pg_net database trigger on INSERT - implementation detail of this phase)
+- Inngest triggered programmatically via `inngest.send()` from server actions
 
-**Why this fourth:** This is the core processing pipeline. Research identified P0 bugs: embedding response structure assumptions, Blob MIME type property access, Promise.all failure cascade. Fixes all three issues to make chunks actually appear. This is the most complex phase (5-7 day estimate in research).
+**Why this fourth:** This is the core processing pipeline. Research identified P0 bugs: embedding response structure assumptions, Blob MIME type property access, Promise.all failure cascade. Fixes all three issues to make chunks actually appear. Architecture upgraded from Edge Function to Inngest for durable execution with built-in retries.
+
+**Architecture Note (2026-01-25):** Originally implemented as Supabase Edge Function, later migrated to Inngest for better durability, observability, and retry handling. Edge function removed in commit 3c09ead.
 
 ---
 
@@ -166,13 +168,13 @@ Plans:
 **Success Criteria:**
 1. Admin sees "Reprocess" button on documents with status "error" or "embedded"
 2. Clicking reprocess changes status back to "pending"
-3. Edge function re-executes and processes document again
+3. Inngest pipeline re-executes and processes document again
 4. Successfully reprocessed document transitions from error → pending → processing → embedded
 5. Error history preserved as array, visible in details panel
 
 **Dependencies:**
 - Phase 3 (requires status tracking UI)
-- Phase 4 (requires working edge function)
+- Phase 4 (requires working Inngest pipeline)
 
 **Why this fifth:** Error recovery requires working processing pipeline to test against. Status-based state machine enables retry without re-upload. This completes the error handling workflow identified in research as "should have" feature.
 
@@ -187,8 +189,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Metadata-aware search (SQL function + VectorstoreService enhancement)
-- [ ] 06-02-PLAN.md — Chat route integration with citations + cache invalidation
+- [x] 06-01-PLAN.md — Metadata-aware search (SQL function + VectorstoreService enhancement)
+- [x] 06-02-PLAN.md — Chat route integration with citations + cache invalidation
 
 **Success Criteria:**
 1. User asks salary question in chatbot and receives answer augmented with document context
@@ -232,14 +234,18 @@ All 16 v1 requirements mapped:
 
 ## Notes
 
-**Critical path:** Phases 1 -> 2 -> 4 -> 6 are sequential (each depends on previous). Phase 3 can be built in parallel with Phase 4 webhook setup. Phase 5 requires both 3 and 4 complete.
+**Critical path:** Phases 1 -> 2 -> 4 -> 6 are sequential (each depends on previous). Phase 3 can be built in parallel with Phase 4. Phase 5 requires both 3 and 4 complete.
 
-**Research flags:** Phase 4 identified as complex (5-7 day estimate) due to multiple P0 bug fixes and Gemini API integration. Recommend `/gsd:research-phase 4` for retry strategies and error classification if issues arise during implementation.
+**Architecture evolution:** Phase 4 was originally implemented with Supabase Edge Functions but migrated to Inngest for:
+- Durable execution with automatic retries (3 attempts per step)
+- Better observability via Inngest dashboard
+- No timeout limits (background job execution)
+- Programmatic triggering via `inngest.send()` instead of SQL webhooks
 
 **Compression rationale:** Research suggested 8 phases, but several can be combined without losing coherence:
 - Research Phase 1 (Foundation & Bug Fixes) maps to our Phase 1
 - Research Phase 2 (Upload & Sync) + Phase 3 (Controllers & UI) maps to our Phase 2 + 3
-- Research Phase 4 (Webhooks) + Phase 5 (Edge Function) maps to our Phase 4 (webhooks are implementation detail)
+- Research Phase 4 (Webhooks) + Phase 5 (Edge Function) maps to our Phase 4 (now Inngest pipeline)
 - Research Phase 6 (RAG) maps to our Phase 6
 - Research Phase 7 (Monitoring) deferred to v2 (monitoring happens naturally via status tracking in Phase 3)
 - Research Phase 8 (Optimization) deferred to v2
