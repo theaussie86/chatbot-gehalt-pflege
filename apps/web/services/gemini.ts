@@ -43,6 +43,6 @@ export const sendMessageToGemini = async (
 
   } catch (error) {
     console.error("API Request Error:", error);
-    return "[PROGRESS: 0] Entschuldigung, es gab einen Fehler bei der Verbindung. Bitte prüfen Sie Ihre Internetverbindung oder API-Konfiguration. [OPTIONS: ['Erneut versuchen']]";
+    return '[PROGRESS: 0] Entschuldigung, es gab einen Fehler bei der Verbindung. Bitte prüfen Sie Ihre Internetverbindung oder API-Konfiguration. [OPTIONS: ["Erneut versuchen"]]';
   }
 };
