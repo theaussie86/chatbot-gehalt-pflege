@@ -170,10 +170,39 @@ export async function reprocessDocumentAction(documentId: string) {
     }
 
     try {
-        // Reset status to 'pending' to trigger the edge function (or whatever mechanism listens for new/pending docs)
+        // 1. Fetch current document to get existing error_details
+        const { data: doc } = await supabase
+            .from("documents")
+            .select("error_details")
+            .eq("id", documentId)
+            .single();
+
+        // 2. Build error history array from existing error_details
+        let errorHistory: any[] = [];
+        if (Array.isArray(doc?.error_details)) {
+            // Already in array format
+            errorHistory = doc.error_details;
+        } else if (doc?.error_details && typeof doc.error_details === 'object') {
+            // Convert legacy single error object to array format
+            errorHistory = [{ attempt: 1, ...doc.error_details }];
+        }
+        // If null/undefined, errorHistory remains empty array
+
+        // 3. Delete existing chunks before resetting status
+        await supabase
+            .from("document_chunks")
+            .delete()
+            .eq("document_id", documentId);
+
+        // 4. Update document with reset state, preserving error history
         const { error } = await supabase
             .from("documents")
-            .update({ status: 'pending' })
+            .update({
+                status: 'pending',
+                chunk_count: null,
+                processing_stage: null,
+                error_details: errorHistory.length > 0 ? errorHistory : null
+            })
             .eq("id", documentId);
 
         if (error) throw error;
