@@ -153,7 +153,7 @@ Phase 6: RAG Integration ...................... ✓ Complete | 2/2 plans
 - [x] Plan 01: Metadata-aware semantic search
   - [x] match_documents_with_metadata SQL function
   - [x] queryWithMetadata() method in VectorstoreService
-  - [ ] Apply SQL migration to Supabase (manual step)
+  - [x] SQL migration applied to Supabase
 - [x] Plan 02: RAG citations and cache invalidation
   - [x] queryWithMetadata() integrated in chat route
   - [x] Similarity threshold filtering (0.75)
@@ -167,15 +167,10 @@ Phase 6: RAG Integration ...................... ✓ Complete | 2/2 plans
 
 ### Blockers
 
-**Manual SQL migration required:**
-- SQL function match_documents_with_metadata created in migration file but not applied to database
-- Apply via Supabase SQL Editor: `apps/api/migrations/20260125000000_match_documents_with_metadata.sql`
-- Project ref: xjbkpfbiajcjkamvlrhw
-- queryWithMetadata() method will work after migration applied
-
-**No edge function deployment needed:**
-- Edge function removed in commit 3c09ead - replaced by Inngest pipeline
-- Inngest is configured and running automatically via `/api/inngest` route
+**None** - All blockers resolved:
+- ✓ SQL function `match_documents_with_metadata` applied to database (2026-01-25)
+- ✓ Edge function removed - replaced by Inngest pipeline
+- ✓ Inngest runs automatically via `/api/inngest` route
 
 ### Open Questions
 
