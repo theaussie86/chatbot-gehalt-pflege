@@ -27,7 +27,7 @@ This roadmap transforms the document pipeline from a broken state (chunks not be
 | 3 | ✓ Complete | 3/3 | 100% |
 | 4 | ✓ Complete | 4/4 | 100% |
 | 5 | ✓ Complete | 1/1 | 100% |
-| 6 | ○ Pending | 0/0 | 0% |
+| 6 | ○ Pending | 0/2 | 0% |
 
 ---
 
@@ -184,6 +184,12 @@ Plans:
 
 **Requirements:** (Integration phase - no new requirements, uses existing VectorstoreService)
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Metadata-aware search (SQL function + VectorstoreService enhancement)
+- [ ] 06-02-PLAN.md — Chat route integration with citations + cache invalidation
+
 **Success Criteria:**
 1. User asks salary question in chatbot and receives answer augmented with document context
 2. VectorstoreService query returns top-k relevant chunks from document_chunks table
@@ -242,4 +248,4 @@ This compression maintains natural delivery boundaries while hitting standard de
 
 ---
 
-*Last updated: 2026-01-25 - Phase 5 Complete*
+*Last updated: 2026-01-25 - Phase 6 Planning Complete*
