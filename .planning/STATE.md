@@ -1,9 +1,9 @@
 # Project State: Gehalt-Pflege Document Pipeline
 
 **Project:** Gehalt-Pflege Document Pipeline
-**Current Phase:** 5 (Complete)
-**Current Plan:** 05-01 (Complete)
-**Status:** Phase 5 Complete
+**Current Phase:** 6 (In Progress)
+**Current Plan:** 06-01 (Complete)
+**Status:** Phase 6 In Progress
 
 ## Project Reference
 
@@ -11,29 +11,29 @@
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** Phase 5 - Error Recovery (Complete)
+**Current focus:** Phase 6 - RAG Integration (In Progress)
 
 ## Current Position
 
-**Phase 5 of 6:** Error Recovery (Complete)
+**Phase 6 of 6:** RAG Integration (In Progress)
 
-**Goal:** Admins can recover from processing failures without re-uploading documents.
+**Goal:** Documents are used as context in chatbot responses with proper citations.
 
-**Last activity:** 2026-01-25 - Completed 05-01-PLAN.md (reprocess workflow with error history)
+**Last activity:** 2026-01-25 - Completed 06-01-PLAN.md (metadata-aware semantic search)
 
-**Next action:** Plan and execute Phase 6 (RAG Integration)
+**Next action:** Continue Phase 6 execution
 
 ## Progress
 
 ```
-[████████████████████████████████████████████████████░░░░] 83.3% (5/6 phases complete)
+[██████████████████████████████████████████████████████░░] 91.7% (5.5/6 phases complete)
 
 Phase 1: Database & Storage Foundation ........ ✓ Complete | 1/1 plans
 Phase 2: Atomic File Operations ............... ✓ Complete | 3/3 plans
 Phase 3: Status & Error Tracking .............. ✓ Complete | 3/3 plans
 Phase 4: Edge Function Processing ............. ✓ Complete | 4/4 plans
 Phase 5: Error Recovery ....................... ✓ Complete | 1/1 plans
-Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
+Phase 6: RAG Integration ...................... ◐ In Progress | 1/2 plans
 ```
 
 | Phase | Status | Plans | Requirements | Progress |
@@ -43,7 +43,7 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 | 3 | ✓ Complete | 3/3 | 3 (STAT-01✓, STAT-02✓, STAT-03✓) | 100% |
 | 4 | ✓ Complete | 4/4 | 4 (EDGE-01✓, EDGE-02✓, EDGE-03✓, EDGE-04✓) | 100% |
 | 5 | ✓ Complete | 1/1 | 1 (ERR-01✓) | 100% |
-| 6 | ○ Pending | 0/? | 0 (integration) | 0% |
+| 6 | ◐ In Progress | 1/2 | 1 (RAG-01✓) | 50% |
 
 ## Accumulated Context
 
@@ -103,6 +103,8 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 | Error history as array in error_details | Preserves full debugging context across multiple retry attempts; single field avoids schema changes | 2026-01-25 |
 | Chunk cleanup before reprocessing | Ensures clean slate for re-embedding; prevents orphaned chunks from failed attempts | 2026-01-25 |
 | Legacy error format conversion on reprocess | Single error object converted to array format on first reprocess for seamless transition | 2026-01-25 |
+| Filter by status='embedded' in search | Only embedded documents searchable to exclude failed/processing documents from results | 2026-01-25 |
+| Preserve existing query() method | Maintain backward compatibility by adding queryWithMetadata() rather than modifying existing method | 2026-01-25 |
 
 ### Active TODOs
 
@@ -140,6 +142,13 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 - [x] UI display of all retry attempts
 - [ ] Deploy updated edge function (manual step required)
 
+**Phase 6 in progress:**
+- [x] Plan 01: Metadata-aware semantic search
+  - [x] match_documents_with_metadata SQL function
+  - [x] queryWithMetadata() method in VectorstoreService
+  - [ ] Apply SQL migration to Supabase
+- [ ] Plan 02: Citation integration in GeminiAgent
+
 **Deferred to later phases:**
 - Monitoring tools (stale document detection, processing duration metrics) - v2
 - Optimization (progress tracking, rate limiting, orphan cleanup) - v2
@@ -147,7 +156,13 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 
 ### Blockers
 
-**Manual deployment required:**
+**Manual SQL migration required:**
+- SQL function match_documents_with_metadata created in migration file but not applied to database
+- Apply via Supabase SQL Editor: `apps/api/migrations/20260125000000_match_documents_with_metadata.sql`
+- Project ref: xjbkpfbiajcjkamvlrhw
+- queryWithMetadata() method will work after migration applied
+
+**Manual edge function deployment required:**
 - Edge function changes committed but not deployed (Supabase CLI not available in execution environment)
 - Deploy command: `supabase functions deploy process-embeddings --project-ref xjbkpfbiajcjkamvlrhw`
 - Error history tracking will work after deployment
@@ -159,27 +174,26 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 
 ## Session Continuity
 
-**Last command:** `/gsd:execute-plan 05-01`
+**Last command:** `/gsd:execute-plan 06-01`
 
 **Last session:** 2026-01-25
 
-**Stopped at:** Phase 5 Complete - Verified
+**Stopped at:** Completed 06-01-PLAN.md - Metadata-aware semantic search
 
 **Resume file:** None
 
 **Context for next session:**
-- **Phase 5 complete and verified** - Error recovery workflow implemented:
-  - Admins can reprocess failed/embedded documents via Reprocess button
-  - Chunk cleanup prevents orphaned data
-  - Error history tracked as array with attempt numbers
-  - UI displays all retry attempts in stacked cards
-  - Backward compatible with single-error legacy format
-  - 4/4 must-haves verified against codebase
-- **Deployment needed:** Edge function changes require manual deployment for error history tracking:
-  `supabase functions deploy process-embeddings --project-ref xjbkpfbiajcjkamvlrhw`
-- **Ready for:** Phase 6 (RAG Integration) - final phase to connect documents to chatbot
+- **Plan 06-01 complete (2 min)** - Metadata-aware semantic search:
+  - match_documents_with_metadata SQL function created
+  - VectorstoreService.queryWithMetadata() method added
+  - Returns documentId, filename, chunkIndex for citations
+  - Filters by status='embedded' to exclude failed documents
+  - TypeScript compiles without errors
+  - SQL migration needs manual application in Supabase
+- **Next:** Plan 06-02 to integrate queryWithMetadata() into GeminiAgent RAG flow and format citations
+- **Blockers:** SQL migration needs manual application via Supabase SQL Editor
 
 ---
 
 *Last updated: 2026-01-25*
-*Phase 5 complete and verified - All 16 v1 requirements now complete*
+*Phase 6 in progress - 1/2 plans complete*
