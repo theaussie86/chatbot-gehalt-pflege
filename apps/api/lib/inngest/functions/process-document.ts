@@ -1,7 +1,7 @@
 import { inngest } from "../client";
 import { createClient } from "@supabase/supabase-js";
-import { GoogleGenAI } from "@google/genai";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { getGeminiClient } from "@/lib/gemini";
 
 // --- Configuration ---
 const GEMINI_MODEL_EXTRACT = "gemini-2.5-flash";
@@ -65,20 +65,13 @@ Do not include any markdown formatting or introductory text, just the raw conten
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) {
     throw new Error("Missing Supabase environment variables");
   }
   return createClient(url, key);
 }
 
-function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("Missing GEMINI_API_KEY");
-  }
-  return new GoogleGenAI({ apiKey });
-}
 
 export const processDocument = inngest.createFunction(
   {
@@ -128,7 +121,7 @@ export const processDocument = inngest.createFunction(
         };
       });
 
-      // Step 2: Extract text using Gemini
+      // Step 2: Extract text using Gemini with inline base64 data (Vertex AI compatible)
       const textContent = await step.run("extract-text", async () => {
         const supabase = getSupabaseClient();
         const genAI = getGeminiClient();
@@ -138,78 +131,50 @@ export const processDocument = inngest.createFunction(
           .update({ processing_stage: "extracting text" })
           .eq("id", documentId);
 
-        // Reconstruct blob from base64
-        const buffer = Buffer.from(fileBlob.base64, "base64");
-        const blob = new Blob([buffer], { type: fileBlob.mimeType });
+        console.log(`Extracting text from ${filename} (${fileBlob.size} bytes)`);
 
-        // Upload to Gemini
-        const geminiFile = await genAI.files.upload({
-          file: new File([blob], filename, { type: fileBlob.mimeType }),
-          config: {
-            mimeType: fileBlob.mimeType,
-            displayName: filename,
-          },
+        // Extract text using inline base64 data (Vertex AI doesn't support file uploads)
+        const extractionPrompt = getExtractionPrompt(fileBlob.mimeType);
+        const extractResult = await genAI.models.generateContent({
+          model: GEMINI_MODEL_EXTRACT,
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: fileBlob.mimeType,
+                    data: fileBlob.base64,
+                  },
+                },
+                { text: extractionPrompt },
+              ],
+            },
+          ],
         });
 
-        if (!geminiFile.uri || !geminiFile.mimeType) {
-          throw new Error("Failed to upload file to Gemini: missing URI or mimeType");
+        const text = extractResult.text || "";
+        console.log(`Extracted text length: ${text.length}`);
+
+        // Validate extracted content
+        const bytesPerChar = fileBlob.size / Math.max(text.length, 1);
+        if (bytesPerChar > 1000 && text.trim().length < 100) {
+          throw new Error(
+            "This PDF appears to contain only images. " +
+              "Text-based PDFs are required for embedding. " +
+              "Please upload a PDF with selectable text."
+          );
         }
 
-        console.log(`Uploaded to Gemini: ${geminiFile.uri}`);
-
-        try {
-          // Extract text
-          const extractionPrompt = getExtractionPrompt(fileBlob.mimeType);
-          const extractResult = await genAI.models.generateContent({
-            model: GEMINI_MODEL_EXTRACT,
-            contents: [
-              {
-                parts: [
-                  {
-                    fileData: {
-                      mimeType: geminiFile.mimeType,
-                      fileUri: geminiFile.uri,
-                    },
-                  },
-                  { text: extractionPrompt },
-                ],
-              },
-            ],
-          });
-
-          const text = extractResult.text || "";
-          console.log(`Extracted text length: ${text.length}`);
-
-          // Validate extracted content
-          const bytesPerChar = fileBlob.size / Math.max(text.length, 1);
-          if (bytesPerChar > 1000 && text.trim().length < 100) {
-            throw new Error(
-              "This PDF appears to contain only images. " +
-                "Text-based PDFs are required for embedding. " +
-                "Please upload a PDF with selectable text."
-            );
-          }
-
-          if (!text || text.trim().length < 50) {
-            throw new Error(
-              "No text extracted from document. " +
-                "This may be a scanned PDF containing only images. " +
-                "Please upload a text-based PDF."
-            );
-          }
-
-          return text;
-        } finally {
-          // Always cleanup Gemini file
-          if (geminiFile.name) {
-            try {
-              await genAI.files.delete({ name: geminiFile.name });
-              console.log(`Cleaned up Gemini file: ${geminiFile.name}`);
-            } catch (cleanupError) {
-              console.warn(`Failed to cleanup Gemini file:`, cleanupError);
-            }
-          }
+        if (!text || text.trim().length < 50) {
+          throw new Error(
+            "No text extracted from document. " +
+              "This may be a scanned PDF containing only images. " +
+              "Please upload a text-based PDF."
+          );
         }
+
+        return text;
       });
 
       // Step 3: Chunk text
