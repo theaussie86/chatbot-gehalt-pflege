@@ -85,7 +85,7 @@ interface WebhookPayload {
 Deno.serve(async (req) => {
   // Declare at function scope - BEFORE try block for access in catch/finally
   let documentId: string | null = null;
-  let uploadedFile: { file: { name: string; uri: string; mimeType: string } } | null = null;
+  let uploadedFile: { name: string; uri: string; mimeType: string } | null = null;
   let currentStage = 'init';
 
   const supabase = createClient(
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
       },
     });
 
-    console.log(`Uploaded to Gemini: ${uploadedFile.file.uri}`);
+    console.log(`Uploaded to Gemini: ${uploadedFile.uri}`);
 
     // 4. Extract Text
     currentStage = 'extracting_text';
@@ -168,8 +168,8 @@ Deno.serve(async (req) => {
           parts: [
             {
               fileData: {
-                mimeType: uploadedFile.file.mimeType,
-                fileUri: uploadedFile.file.uri,
+                mimeType: uploadedFile.mimeType,
+                fileUri: uploadedFile.uri,
               },
             },
             {
@@ -366,16 +366,16 @@ Deno.serve(async (req) => {
     });
   } finally {
     // EDGE-03: Always cleanup Gemini files, even on error
-    if (uploadedFile?.file?.name) {
+    if (uploadedFile?.name) {
       const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
       if (geminiApiKey) {
         try {
           const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
-          await genAI.files.delete({ name: uploadedFile.file.name });
-          console.log(`Cleaned up Gemini file: ${uploadedFile.file.name}`);
+          await genAI.files.delete({ name: uploadedFile.name });
+          console.log(`Cleaned up Gemini file: ${uploadedFile.name}`);
         } catch (cleanupError) {
           // Log but don't throw - cleanup failure shouldn't mask original error
-          console.warn(`Failed to cleanup Gemini file ${uploadedFile.file.name}:`, cleanupError);
+          console.warn(`Failed to cleanup Gemini file ${uploadedFile.name}:`, cleanupError);
         }
       }
     }
