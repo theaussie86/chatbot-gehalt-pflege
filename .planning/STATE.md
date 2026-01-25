@@ -1,9 +1,9 @@
 # Project State: Gehalt-Pflege Document Pipeline
 
 **Project:** Gehalt-Pflege Document Pipeline
-**Current Phase:** 5 (In Progress)
+**Current Phase:** 5 (Complete)
 **Current Plan:** 05-01 (Complete)
-**Status:** Phase 5 In Progress
+**Status:** Phase 5 Complete
 
 ## Project Reference
 
@@ -11,17 +11,17 @@
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** Phase 5 - Error Recovery (In Progress)
+**Current focus:** Phase 5 - Error Recovery (Complete)
 
 ## Current Position
 
-**Phase 5 of 6:** Error Recovery (In Progress)
+**Phase 5 of 6:** Error Recovery (Complete)
 
 **Goal:** Admins can recover from processing failures without re-uploading documents.
 
 **Last activity:** 2026-01-25 - Completed 05-01-PLAN.md (reprocess workflow with error history)
 
-**Next action:** Check if Phase 5 has additional plans, or proceed to Phase 6 (RAG Integration)
+**Next action:** Plan and execute Phase 6 (RAG Integration)
 
 ## Progress
 
@@ -163,21 +163,23 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 
 **Last session:** 2026-01-25
 
-**Stopped at:** Phase 5 Plan 01 Complete
+**Stopped at:** Phase 5 Complete - Verified
 
 **Resume file:** None
 
 **Context for next session:**
-- **Phase 5 complete** - Error recovery workflow implemented:
+- **Phase 5 complete and verified** - Error recovery workflow implemented:
   - Admins can reprocess failed/embedded documents via Reprocess button
   - Chunk cleanup prevents orphaned data
   - Error history tracked as array with attempt numbers
   - UI displays all retry attempts in stacked cards
   - Backward compatible with single-error legacy format
-- **Deployment needed:** Edge function changes require manual deployment
-- **Ready for:** Phase 6 (RAG Integration) - documents can be reliably reprocessed if needed
+  - 4/4 must-haves verified against codebase
+- **Deployment needed:** Edge function changes require manual deployment for error history tracking:
+  `supabase functions deploy process-embeddings --project-ref xjbkpfbiajcjkamvlrhw`
+- **Ready for:** Phase 6 (RAG Integration) - final phase to connect documents to chatbot
 
 ---
 
 *Last updated: 2026-01-25*
-*Phase 5 complete - Error recovery workflow ready (deployment pending)*
+*Phase 5 complete and verified - All 16 v1 requirements now complete*
