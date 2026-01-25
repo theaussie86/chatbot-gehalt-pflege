@@ -343,16 +343,39 @@ Deno.serve(async (req) => {
     // EDGE-02: Use pre-stored documentId (request body already consumed)
     if (documentId) {
       try {
+        // 1. Fetch current error_details to build history
+        const { data: currentDoc } = await supabase
+          .from("documents")
+          .select("error_details")
+          .eq("id", documentId)
+          .single();
+
+        // 2. Build error history array
+        let errorHistory: any[] = [];
+        if (Array.isArray(currentDoc?.error_details)) {
+          // Already in array format
+          errorHistory = currentDoc.error_details;
+        } else if (currentDoc?.error_details && typeof currentDoc.error_details === 'object') {
+          // Convert legacy single error to array format
+          errorHistory = [{ attempt: 1, ...currentDoc.error_details }];
+        }
+
+        // 3. Append new error to history
+        const newError = {
+          attempt: errorHistory.length + 1,
+          code: "PROCESSING_ERROR",
+          message: error instanceof Error ? error.message : String(error),
+          timestamp: new Date().toISOString(),
+          stage: currentStage
+        };
+        errorHistory.push(newError);
+
+        // 4. Update document with error history array
         await supabase
           .from("documents")
           .update({
             status: "error",
-            error_details: {
-              code: "PROCESSING_ERROR",
-              message: error instanceof Error ? error.message : String(error),
-              timestamp: new Date().toISOString(),
-              stage: currentStage
-            }
+            error_details: errorHistory
           })
           .eq("id", documentId);
       } catch (updateError) {
