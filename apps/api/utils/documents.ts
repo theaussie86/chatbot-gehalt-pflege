@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { inngest } from "@/lib/inngest/client";
 
 // Custom error class for upload errors with structured data
 export class DocumentUploadError extends Error {
@@ -115,10 +116,18 @@ export async function uploadDocumentService(
         );
     }
 
-    // 3. Trigger Extraction Process (Background)
-    // Trigger is now handled by Supabase Edge Function listening to DB changes or status
-    // or we just leave it as 'pending' and the edge function picks it up.
-    
+    // 3. Trigger Inngest processing (replaces Supabase Edge Function)
+    await inngest.send({
+        name: "document/process",
+        data: {
+            documentId: document.id,
+            projectId: projectId,
+            filename: fileName,
+            mimeType: mimeType,
+            storagePath: storagePath,
+        },
+    });
+
     return document;
 }
 

@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { deleteDocumentService, uploadDocumentService, DocumentUploadError } from "@/utils/documents";
 import { revalidatePath } from "next/cache";
 import { VectorstoreService } from "@/lib/vectorstore/VectorstoreService";
+import { inngest } from "@/lib/inngest/client";
 
 function getVectorstoreForCacheInvalidation(): VectorstoreService | null {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -164,6 +165,18 @@ export async function createDocumentRecordAction(
             throw new Error(`Database error: ${dbError.message}`);
         }
 
+        // Trigger Inngest processing for the new document
+        await inngest.send({
+            name: "document/process",
+            data: {
+                documentId: document.id,
+                projectId: projectId,
+                filename: filename,
+                mimeType: mimeType,
+                storagePath: storagePath,
+            },
+        });
+
         if (projectId) {
             revalidatePath(`/projects/${projectId}`);
         }
@@ -188,10 +201,10 @@ export async function reprocessDocumentAction(documentId: string) {
     }
 
     try {
-        // 1. Fetch current document to get existing error_details
+        // 1. Fetch current document to get existing error_details and required fields
         const { data: doc } = await supabase
             .from("documents")
-            .select("error_details")
+            .select("error_details, project_id, filename, mime_type, storage_path")
             .eq("id", documentId)
             .single();
 
@@ -224,6 +237,20 @@ export async function reprocessDocumentAction(documentId: string) {
             .eq("id", documentId);
 
         if (error) throw error;
+
+        // Trigger Inngest to reprocess the document
+        if (doc) {
+            await inngest.send({
+                name: "document/process",
+                data: {
+                    documentId: documentId,
+                    projectId: doc.project_id,
+                    filename: doc.filename,
+                    mimeType: doc.mime_type,
+                    storagePath: doc.storage_path,
+                },
+            });
+        }
 
         // Invalidate RAG cache after reprocess to clear stale answers
         const vectorstore = getVectorstoreForCacheInvalidation();
