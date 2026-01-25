@@ -1,9 +1,9 @@
 # Project State: Gehalt-Pflege Document Pipeline
 
 **Project:** Gehalt-Pflege Document Pipeline
-**Current Phase:** 4 (In Progress)
-**Current Plan:** 04-03 (Complete)
-**Status:** Phase 4 Plan 03 Complete
+**Current Phase:** 4 (Complete)
+**Current Plan:** 04-04 (Complete)
+**Status:** Phase 4 Complete
 
 ## Project Reference
 
@@ -11,27 +11,27 @@
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** Phase 4 - Edge Function Processing (Plan 03 Complete)
+**Current focus:** Phase 4 - Edge Function Processing (Complete)
 
 ## Current Position
 
-**Phase 4 of 6:** Edge Function Processing (In Progress)
+**Phase 4 of 6:** Edge Function Processing (Complete)
 
 **Goal:** Edge function reliably processes documents into searchable chunks with proper error handling.
 
-**Last activity:** 2026-01-24 - Completed 04-03-PLAN.md (chunking and file type handling)
+**Last activity:** 2026-01-25 - Completed 04-04-PLAN.md (deploy and verify E2E processing)
 
-**Next action:** Continue to Plan 04-04 (deploy and verify E2E processing)
+**Next action:** Plan Phase 5 (Error Recovery) or Phase 6 (RAG Integration)
 
 ## Progress
 
 ```
-[████████████████████████████████████████░░░░░░░░] 62.5% (3/6 phases + 3 plans)
+[████████████████████████████████████████████████░░░░░░░░] 66.7% (4/6 phases complete)
 
 Phase 1: Database & Storage Foundation ........ ✓ Complete | 1/1 plans
 Phase 2: Atomic File Operations ............... ✓ Complete | 3/3 plans
 Phase 3: Status & Error Tracking .............. ✓ Complete | 3/3 plans
-Phase 4: Edge Function Processing ............. ◐ In Progress | 3/4 plans
+Phase 4: Edge Function Processing ............. ✓ Complete | 4/4 plans
 Phase 5: Error Recovery ....................... ○ Pending | 0/? plans
 Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 ```
@@ -41,7 +41,7 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 | 1 | ✓ Complete | 1/1 | 3 (DB-01✓, DB-02✓, DB-03✓) | 100% |
 | 2 | ✓ Complete | 3/3 | 5 (FILE-01✓, FILE-02✓, FILE-03✓, ERR-02✓, ERR-03✓) | 100% |
 | 3 | ✓ Complete | 3/3 | 3 (STAT-01✓, STAT-02✓, STAT-03✓) | 100% |
-| 4 | ◐ In Progress | 3/4 | 4 (EDGE-01✓, EDGE-02✓, EDGE-03✓, EDGE-04) | 75% |
+| 4 | ✓ Complete | 4/4 | 4 (EDGE-01✓, EDGE-02✓, EDGE-03✓, EDGE-04✓) | 100% |
 | 5 | ○ Pending | 0/? | 1 (ERR-01) | 0% |
 | 6 | ○ Pending | 0/? | 0 (integration) | 0% |
 
@@ -50,19 +50,17 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 ### Known Issues
 
 **P0-Blocking bugs identified in research:**
-1. RLS policies checking `auth.uid()` fail when service role has NULL uid - service role bypasses SELECT but INSERT policies with JOIN conditions fail silently
-2. ~~Embedding API response structure: `embedResult.embeddings?.[0]?.values` may be undefined - need defensive parsing~~ **FIXED in 04-02**
+1. ~~RLS policies checking `auth.uid()` fail when service role has NULL uid~~ **FIXED in 04-01**
+2. ~~Embedding API response structure: `embedResult.embeddings?.[0]?.values` may be undefined~~ **FIXED in 04-02**
 3. ~~Blob MIME type: code uses `fileBlob.mime_type` but JavaScript Blob has `.type` property~~ **FIXED in 04-01**
+4. ~~Gemini file upload response: code used `file.file.name` but response has `file.name` directly~~ **FIXED in 04-04**
 
-**Current symptoms (pre-04-01 fixes):**
-- Edge function triggers and authenticates successfully
-- Text extraction works
-- Chunks are NOT created in document_chunks table
-- No error messages visible in logs
-
-**Post 04-02:** Defensive embedding parsing with SDK version compatibility. All-or-nothing document failure semantics. Real-time processing stage visibility.
-
-**Post 04-03:** Improved chunking (2000/100 char size/overlap), MIME type validation, spreadsheet markdown conversion, image-only PDF detection.
+**Post Phase 4 Complete:**
+- All P0 bugs fixed and verified
+- E2E document processing working: upload -> edge function -> chunks with 768-dim embeddings
+- Scanned PDFs process successfully via Gemini OCR (better than planned rejection)
+- Realtime status updates visible during processing
+- Chunk count displayed after successful embedding
 
 ### Decisions
 
@@ -101,13 +99,14 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 | Paragraph-first separators | Semantic chunking respects document structure by splitting on \\n\\n first | 2026-01-24 |
 | Image-only PDF heuristic | >1000 bytes/char AND <100 chars extracted detects scanned PDFs | 2026-01-24 |
 | Spreadsheet markdown extraction | File-type specific prompts convert tables to markdown format for embedding | 2026-01-24 |
+| Gemini file response structure | File upload returns file.name directly, not nested in file.file.name | 2026-01-25 |
 
 ### Active TODOs
 
 **Phase 1 complete:**
 - [x] Apply migration 20260123000000_phase1_foundation.sql in Supabase SQL Editor
 - [x] Run verification queries to confirm fixes
-- [ ] Test edge function with real document upload to verify chunks are inserted (can test now with 04-02 fixes)
+- [x] Test edge function with real document upload to verify chunks are inserted
 
 **Phase 2 complete:**
 - [x] Upload validation (size, MIME type)
@@ -122,13 +121,14 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 - [x] Plan 02: Document details panel and realtime updates
 - [x] Plan 03: Checkbox selection and bulk delete with human verification
 
-**Phase 4 in progress:**
+**Phase 4 complete:**
 - [x] Plan 01: Fix Blob MIME type, error handling, Gemini cleanup
 - [x] Plan 02: Defensive embedding parsing, Promise.allSettled, processing stage visibility
 - [x] Plan 03: Improved chunking (2000/100), MIME validation, spreadsheet markdown, image-only PDF detection
-- [ ] Apply migration 20260124154600_add_processing_columns.sql in Supabase SQL Editor
-- [ ] Deploy updated edge function: `supabase functions deploy process-embeddings`
-- [ ] Plan 04: Deploy and verify E2E processing
+- [x] Plan 04: Deploy and verify E2E processing
+- [x] Apply migration 20260124154600_add_processing_columns.sql
+- [x] Deploy edge function
+- [x] E2E verification passed (PDF, text files, scanned PDFs via OCR)
 
 **Deferred to later phases:**
 - Monitoring tools (stale document detection, processing duration metrics) - v2
@@ -137,37 +137,34 @@ Phase 6: RAG Integration ...................... ○ Pending | 0/? plans
 
 ### Blockers
 
-None. Plan 04-03 complete. Edge function needs deployment and migration to test fixes (Plan 04-04).
+None. Phase 4 complete.
 
 ### Open Questions
 
-1. Has text-embedding-004 been deprecated? (Research noted Jan 14, 2026 deprecation; today is Jan 24) - need to verify model availability during Phase 4
+1. ~~Has text-embedding-004 been deprecated?~~ **RESOLVED** - Model works, E2E verified
 2. What are actual edge function timeout limits under load? (Documentation: 150s free tier, 400s Pro) - need load testing with 100+ page PDFs
 
 ## Session Continuity
 
-**Last command:** `/gsd:execute-plan 04-03`
+**Last command:** `/gsd:execute-plan 04-04`
 
-**Last session:** 2026-01-24
+**Last session:** 2026-01-25
 
-**Stopped at:** Plan 04-03 Complete
+**Stopped at:** Phase 4 Complete
 
 **Resume file:** None
 
 **Context for next session:**
-- **Plan 04-03 complete** - Chunking and file type handling:
-  - Chunking updated to 2000 char size / 100 char overlap
-  - Semantic separators prioritize paragraph breaks (\n\n first)
-  - SUPPORTED_MIME_TYPES constant with validation (PDF, text, markdown, CSV, XLSX)
-  - getExtractionPrompt() helper for file-type specific prompts
-  - Spreadsheets converted to markdown table format
-  - Image-only PDF detection via bytes-per-char heuristic
-- **Migration needed:** Apply `20260124154600_add_processing_columns.sql` in Supabase SQL Editor
-- **Deployment needed:** Run `supabase functions deploy process-embeddings` to apply fixes
-- **Ready for testing:** All edge function code complete, needs deployment (Plan 04-04)
-- **Continue with:** Plan 04-04 (Deploy and verify E2E processing)
+- **Phase 4 complete** - Edge function processing fully operational:
+  - Documents upload -> trigger edge function -> create chunks with 768-dim embeddings
+  - Realtime status updates visible during processing (extracting -> embedding -> embedded)
+  - Chunk count displayed in document details panel
+  - Error handling with error_details shown in UI
+  - Scanned PDFs processed via Gemini OCR (exceeded expectations)
+- **All P0 bugs fixed:** RLS, embedding parsing, Blob MIME type, Gemini response structure
+- **Ready for next phase:** Phase 5 (Error Recovery) or Phase 6 (RAG Integration)
 
 ---
 
-*Last updated: 2026-01-24*
-*Plan 04-03 complete - Improved chunking and file type handling*
+*Last updated: 2026-01-25*
+*Phase 4 complete - E2E document processing verified and operational*
