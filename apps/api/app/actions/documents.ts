@@ -3,6 +3,17 @@
 import { createClient } from "@/utils/supabase/server";
 import { deleteDocumentService, uploadDocumentService, DocumentUploadError } from "@/utils/documents";
 import { revalidatePath } from "next/cache";
+import { VectorstoreService } from "@/lib/vectorstore/VectorstoreService";
+
+function getVectorstoreForCacheInvalidation(): VectorstoreService | null {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) {
+        console.warn('[RAG] Missing env vars for cache invalidation');
+        return null;
+    }
+    return new VectorstoreService(url, key);
+}
 
 export async function uploadDocumentAction(formData: FormData) {
     try {
@@ -57,6 +68,13 @@ export async function deleteDocumentAction(documentId: string, projectId: string
         if (!user) throw new Error("Unauthorized");
 
         await deleteDocumentService(documentId, user.id);
+
+        // Invalidate RAG cache after document deletion
+        const vectorstore = getVectorstoreForCacheInvalidation();
+        if (vectorstore) {
+            vectorstore.clearCache();
+            console.log('[RAG] Cache invalidated after document deletion');
+        }
 
         revalidatePath(`/projects/${projectId}`);
         return { success: true };
@@ -207,6 +225,13 @@ export async function reprocessDocumentAction(documentId: string) {
 
         if (error) throw error;
 
+        // Invalidate RAG cache after reprocess to clear stale answers
+        const vectorstore = getVectorstoreForCacheInvalidation();
+        if (vectorstore) {
+            vectorstore.clearCache();
+            console.log('[RAG] Cache invalidated after document reprocess');
+        }
+
         revalidatePath('/documents');
         revalidatePath('/admin/documents');
         return { success: true };
@@ -271,6 +296,15 @@ export async function bulkDeleteDocumentsAction(documentIds: string[]) {
             results.push({ id, success: true });
         } catch (err: any) {
             results.push({ id, success: false, error: err.message });
+        }
+    }
+
+    // Invalidate RAG cache after bulk delete
+    if (results.some(r => r.success)) {
+        const vectorstore = getVectorstoreForCacheInvalidation();
+        if (vectorstore) {
+            vectorstore.clearCache();
+            console.log('[RAG] Cache invalidated after bulk delete');
         }
     }
 
