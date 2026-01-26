@@ -169,7 +169,7 @@ export class VectorstoreService {
       // 2. Semantic search in vectorstore
       const { data: results, error } = await this.supabase.rpc('match_documents', {
         query_embedding: embedding,
-        match_threshold: 0.7,
+        match_threshold: 0.5,
         match_count: topK,
         filter_project_id: projectId
       });
@@ -234,7 +234,7 @@ export class VectorstoreService {
       // 2. Semantic search with metadata join
       const { data: results, error } = await this.supabase.rpc('match_documents_with_metadata', {
         query_embedding: embedding,
-        match_threshold: 0.7,
+        match_threshold: 0.5,
         match_count: topK,
         filter_project_id: projectId
       });

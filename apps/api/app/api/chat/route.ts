@@ -201,10 +201,27 @@ export async function POST(request: Request) {
             // --- US-007: HANDLE QUESTION INTENT WITH RAG + CITATIONS ---
             if (nextFormState.userIntent === 'question') {
                 // Query vectorstore with metadata for citation attribution
-                const ragResults = await vectorstore.queryWithMetadata(message, activeProjectId, 3);
+                const ragResults = await vectorstore.queryWithMetadata(message, activeProjectId, 5);
 
-                // Filter by similarity threshold to avoid noise
-                const relevantResults = ragResults.filter(r => r.similarity >= 0.75);
+                // Results are already filtered by 0.5 threshold in VectorstoreService
+                const relevantResults = ragResults;
+
+                // Log RAG metadata in development mode
+                if (process.env.NODE_ENV === 'development') {
+                    console.log('\n━━━ RAG Query ━━━');
+                    console.log(`Question: ${message}`);
+                    console.log(`Project: ${activeProjectId}`);
+                    console.log(`Results: ${relevantResults.length}`);
+                    if (relevantResults.length > 0) {
+                        console.log('\nMatches:');
+                        relevantResults.forEach((r, i) => {
+                            console.log(`  [${i + 1}] ${r.metadata.filename} (chunk ${r.metadata.chunkIndex})`);
+                            console.log(`      Similarity: ${(r.similarity * 100).toFixed(1)}%`);
+                            console.log(`      Preview: ${r.content.substring(0, 100)}...`);
+                        });
+                    }
+                    console.log('━━━━━━━━━━━━━━━━━\n');
+                }
 
                 // Build context section with citations
                 let contextSection = '';
