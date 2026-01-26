@@ -1,1221 +1,990 @@
-# Architecture Research
+# Architecture Research: Chat Intelligence Integration
 
-**Research Date:** 2026-01-23
-**Domain:** Document Processing Pipeline
+**Domain:** Chat UX Enhancements for AI Salary Calculator
+**Focus:** Integration of conversation persistence, function calling, suggested responses, and validation improvements
+**Researched:** 2026-01-26
+**Overall confidence:** HIGH
 
-## Component Overview
+## Executive Summary
 
-Document processing pipelines typically follow a multi-stage architecture with clear separation between synchronous and asynchronous phases. Based on analysis of the existing implementation and industry patterns, the major components are:
+Chat Intelligence features integrate as enhancements to the existing state machine-driven chatbot architecture without requiring fundamental restructuring. The current system already has the core building blocks: state machine flow (`SalaryStateMachine`), intent detection (`ConversationAnalyzer`), validation services (`ResponseValidator`), and RAG integration (`VectorstoreService`). New features layer on top through four architectural additions: (1) persistent conversation storage in Supabase with local storage sync, (2) structured tool definitions for tax calculation via Gemini's function calling API, (3) suggested response generation via context-aware prompting, and (4) enhanced validation with citation enrichment.
 
-### 1. Upload Controller Layer
-**Responsibility:** Handle HTTP requests, validate inputs, orchestrate upload flow
-- **Location:** `apps/api/app/actions/documents.ts`
-- **Type:** Next.js Server Actions
-- **Operations:**
-  - User authentication/authorization
-  - File validation (type, size)
-  - Orchestration of service layer
-  - UI revalidation
+The integration is non-invasive because the state machine and agent orchestration patterns remain unchanged. Conversation persistence extends the existing `FormState` with conversation IDs and history arrays. Function calling replaces inline tax calculation prompts with structured tool definitions already partially implemented in `GeminiAgent`. Suggested responses are generated during response formatting as an optional field. Citations already exist in the RAG pipeline (`queryWithMetadata`) and only need page number enrichment via document metadata.
 
-### 2. Upload Service Layer
-**Responsibility:** Business logic for coordinating storage and database operations
-- **Location:** `apps/api/utils/documents.ts`
-- **Type:** Service functions (uploadDocumentService, deleteDocumentService)
-- **Operations:**
-  - Dual-write pattern (Storage + Database)
-  - Compensating transactions on failure
-  - Status management
-  - Error handling and rollback
+Risk is LOW because each feature operates independently - conversation persistence doesn't depend on function calling, suggested responses don't require persistent storage, and validation improvements are isolated to the `ResponseValidator` service. The recommended build order sequences features by complexity and integration surface: start with conversation persistence (foundational data layer), then function calling (agent enhancement), followed by suggested responses (UI layer), and finish with validation/citation improvements (polish).
 
-### 3. Storage Layer
-**Responsibility:** Persistent file storage
-- **Provider:** Supabase Storage (S3-compatible)
-- **Bucket:** `project-files`
-- **Path Structure:** `{projectId|'global'}/{timestamp}-{filename}`
-- **Access Pattern:** Direct upload via Supabase SDK
-- **Features:**
-  - RLS policies for access control
-  - 52MB file size limit
-  - PDF-only via MIME type enforcement
+## Integration Points
 
-### 4. Database Layer
-**Responsibility:** Metadata storage and transaction management
-- **Provider:** Supabase PostgreSQL
-- **Tables:**
-  - `documents` - Parent record with status tracking
-  - `document_chunks` - Child records with embeddings (CASCADE delete)
-- **Status Flow:** `pending → processing → embedded/error`
-- **Access Pattern:** Via Supabase client with RLS enforcement
+### Existing Components Requiring Enhancement
 
-### 5. Webhook Trigger Layer
-**Responsibility:** Event-driven background job initiation
-- **Mechanism:** PostgreSQL trigger + pg_net HTTP POST
-- **Trigger Condition:** `AFTER INSERT ON documents WHERE status = 'pending'`
-- **Target:** Supabase Edge Function endpoint
-- **Payload:** Full document record as JSON
-- **Location:** `apps/api/migrations/20260116000000_setup_embedding_webhook.sql`
+#### 1. Chat Endpoint (`apps/api/app/api/chat/route.ts`)
 
-### 6. Background Processing Layer (Edge Function)
-**Responsibility:** Async document processing pipeline
-- **Location:** `supabase/functions/process-embeddings/index.ts`
-- **Runtime:** Deno with HTTP server
-- **Stages:**
-  1. Status update (`pending → processing`)
-  2. File download from Storage
-  3. External API upload (Gemini File API)
-  4. Text extraction via LLM
-  5. Text chunking (RecursiveCharacterTextSplitter)
-  6. Batch embedding generation
-  7. Database insertion
-  8. Cleanup and status finalization
+**Current role:** Request orchestration with state machine execution, intent detection, and response generation.
 
-### 7. External AI Service Layer
-**Responsibility:** Document understanding and vectorization
-- **Provider:** Google Gemini API
-- **Models:**
-  - `gemini-2.5-flash` - Text extraction
-  - `text-embedding-004` - Vector embeddings (768 dimensions)
-- **Access Pattern:** Ephemeral file upload, synchronous API calls, cleanup after processing
-- **Error Handling:** Independent try-catch blocks per chunk
+**Integration needs:**
 
-### 8. Vector Database Layer
-**Responsibility:** Semantic search via embeddings
-- **Extension:** pgvector with HNSW index
-- **Storage:** `document_chunks` table
-- **Query Function:** `match_documents()` RPC with cosine similarity
-- **Access Pattern:** Called during RAG query flow in chat endpoint
+**Line 26-48: Request parsing and authentication**
+- **ADD:** Extract `conversationId` from request body
+- **ADD:** Load existing conversation from DB if ID provided
+- **MODIFY:** Include `conversationId` in response for client sync
+
+**Line 129-156: State machine initialization and conversation context**
+- **ALREADY EXISTS:** `conversationContext` array (line 147-154) keeping last 10 messages
+- **MODIFY:** Replace local array with DB-backed history for persistence
+- **ADD:** Create new conversation record on first message
+- **ADD:** Update conversation record after each turn
+
+**Line 159-176: Intent detection**
+- **NO CHANGE:** Intent detection logic remains identical
+- **BENEFIT:** Persistent history improves intent accuracy over multiple sessions
+
+**Line 304-414: Tax calculation execution**
+- **ALREADY PARTIAL:** GeminiAgent has function calling infrastructure
+- **ENHANCE:** Move calculation from inline prompts to pure function calling
+- **ADD:** Response handling for structured tool results
+- **BENEFIT:** Structured I/O reduces parsing errors
+
+**Line 630-657: Response generation**
+- **ADD:** Generate suggested response chips based on current state
+- **ADD:** Include suggestions in response payload
+- **MODIFY:** Response format from `{ text, formState }` to `{ text, formState, suggestions?, conversationId }`
+
+**Integration complexity:** MEDIUM - multiple touchpoints but well-isolated
 
 ---
 
-## Data Flow
+#### 2. GeminiAgent (`apps/api/utils/agent/GeminiAgent.ts`)
 
-### Upload Flow (Synchronous Phase)
+**Current role:** AI orchestration with tool execution (salary calculation).
 
-```
-User (Browser)
-    │
-    ├─ Step 1: Select PDF file
-    │
-    ▼
-DocumentManager Component
-    │
-    ├─ Step 2: Build FormData with projectId
-    │
-    ▼
-uploadDocumentAction (Server Action)
-    │
-    ├─ Step 3: Authenticate user via Supabase Auth
-    ├─ Step 4: Extract file and projectId
-    │
-    ▼
-uploadDocumentService
-    │
-    ├─ Step 5a: Upload to Supabase Storage
-    │   └─ Path: project-files/{projectId}/{timestamp}-{filename}
-    │   └─ Returns: storage_path, object_id
-    │
-    ├─ Step 5b: Insert to documents table
-    │   └─ Fields: project_id, filename, mime_type, storage_path, status='pending'
-    │   └─ Trigger fires: on_document_created_process_embeddings
-    │
-    ├─ Step 5c: IF DB insert fails → DELETE from Storage (compensating transaction)
-    │
-    ▼
-Return to UI
-    │
-    └─ Step 6: Toast notification + UI revalidation
-```
+**Integration needs:**
 
-**Sync Points:**
-- ✅ Storage upload MUST complete before DB insert
-- ✅ DB insert failure triggers immediate storage cleanup
-- ✅ User receives confirmation only after both operations succeed
-- ❌ Background processing status NOT awaited (async)
+**Line 3-4: Tool definitions**
+- **ALREADY EXISTS:** `SALARY_TOOL` imported from config (line 3)
+- **VERIFY:** Tool definition matches Gemini 2.0+ function calling schema
+- **EXPAND:** Add additional tools if needed (tariff lookup, state validation)
+
+**Line 64-126: Tool execution handling**
+- **ALREADY EXISTS:** Function call detection and execution pattern
+- **ENHANCE:** Add comprehensive error handling for malformed tool calls
+- **ADD:** Logging for tool execution metrics (latency, success rate)
+- **REVIEW:** Current implementation manually parses - ensure robust
+
+**Integration complexity:** LOW - existing pattern, just enhancement
 
 ---
 
-### Processing Flow (Asynchronous Phase)
+#### 3. VectorstoreService (`apps/api/lib/vectorstore/VectorstoreService.ts`)
 
-```
-Database Trigger (AFTER INSERT)
-    │
-    ├─ Trigger Condition: NEW.status = 'pending'
-    │
-    ▼
-pg_net.http_post (Webhook Dispatch)
-    │
-    ├─ URL: https://{project}.supabase.co/functions/v1/process-embeddings
-    ├─ Headers: Authorization Bearer {service_role_key}
-    ├─ Body: { type: 'INSERT', record: {...} }
-    │
-    ▼
-Edge Function: process-embeddings
-    │
-    ├─ Step 1: Update status to 'processing'
-    │   └─ Prevents duplicate processing
-    │
-    ├─ Step 2: Download file from Storage
-    │   └─ Via: supabase.storage.from('project-files').download(storage_path)
-    │   └─ Returns: Blob
-    │
-    ├─ Step 3: Upload to Gemini File API (ephemeral)
-    │   └─ Purpose: Required for multimodal text extraction
-    │   └─ Returns: fileUri for API reference
-    │
-    ├─ Step 4: Extract text via Gemini 2.5 Flash
-    │   └─ Prompt: "Extract all text... no markdown formatting"
-    │   └─ Returns: Raw text string
-    │
-    ├─ Step 5: Chunk text
-    │   └─ RecursiveCharacterTextSplitter
-    │   └─ Config: chunkSize=1000, chunkOverlap=200
-    │   └─ Separators: ["\n\n", "\n", " ", ""]
-    │   └─ Returns: Array of text chunks
-    │
-    ├─ Step 6: Generate embeddings (batched)
-    │   └─ Batch size: 10 chunks at a time
-    │   └─ Per chunk: Call text-embedding-004
-    │   └─ Error handling: Individual chunk failures return null
-    │   └─ Returns: Array of { document_id, chunk_index, content, embedding[768], token_count }
-    │
-    ├─ Step 7: Delete old chunks (idempotency)
-    │   └─ DELETE FROM document_chunks WHERE document_id = {id}
-    │
-    ├─ Step 8: Batch insert chunks
-    │   └─ INSERT INTO document_chunks (batched)
-    │   └─ If insertError → throw (triggers error handler)
-    │
-    ├─ Step 9: Cleanup Gemini temporary file
-    │   └─ genAI.files.delete(fileUri)
-    │   └─ Best effort (catch + warn, don't fail)
-    │
-    ├─ Step 10: Update status to 'embedded'
-    │   └─ Signals processing complete
-    │
-    ▼
-Return Response
-    └─ Status 200: { success: true }
-    └─ Status 500: { error: message } + status='error' update
+**Current role:** RAG query with semantic search and caching.
+
+**Integration needs:**
+
+**Line 210-266: queryWithMetadata**
+- **ALREADY EXISTS:** Returns `{ content, similarity, metadata: { documentId, filename, chunkIndex } }`
+- **ADD:** Page number extraction from chunk metadata
+- **MODIFY:** Metadata structure to include `pageNumber?: number`
+
+**Database schema modification required:**
+```sql
+-- Add page column to document_chunks (nullable for backward compatibility)
+ALTER TABLE document_chunks ADD COLUMN page_number INTEGER;
+
+-- Populate during Inngest chunk creation based on chunk index estimation
 ```
 
-**Async Points:**
-- ⏱️ Processing happens outside request/response cycle
-- ⏱️ No timeout constraint from client perspective
-- ⏱️ Status polling via UI (DocumentManager refetch on interval)
-- ⏱️ Webhook delivery is at-least-once (may retry on failure)
+**Integration complexity:** LOW - isolated metadata enhancement
 
 ---
 
-### Delete Flow (Synchronous Phase)
+#### 4. ResponseValidator (`apps/api/utils/agent/ResponseValidator.ts`)
 
-```
-User (Browser)
-    │
-    ├─ Step 1: Click delete button
-    │
-    ▼
-Confirm Dialog
-    │
-    ├─ Step 2: User confirms deletion
-    │
-    ▼
-deleteDocumentAction (Server Action)
-    │
-    ├─ Step 3: Authenticate user
-    │
-    ▼
-deleteDocumentService
-    │
-    ├─ Step 4: SELECT document (RLS enforces access control)
-    │   └─ If not found → throw "Document not found"
-    │
-    ├─ Step 5: DELETE from Storage
-    │   └─ supabase.storage.from('project-files').remove([storage_path])
-    │   └─ If fails → log warning, continue (soft failure)
-    │
-    ├─ Step 6: DELETE from documents table
-    │   └─ Cascade: Automatically deletes document_chunks (ON DELETE CASCADE)
-    │   └─ If fails → throw error
-    │
-    ▼
-Return to UI
-    └─ Step 7: Toast notification + UI revalidation
-```
+**Current role:** Field validation with LLM normalization.
 
-**Sync Points:**
-- ✅ Storage deletion happens before DB deletion
-- ⚠️ Storage deletion failure is non-blocking (logged but doesn't halt)
-- ✅ DB deletion automatically cascades to chunks
-- ✅ User confirmation required before execution
+**Integration needs:**
+
+**Line 52-63: Vectorstore enrichment**
+- **ALREADY EXISTS:** Calls `vectorstore.enrichValue()` for context
+- **ENHANCE:** Use vectorstore context for validation suggestions with citations
+- **ADD:** Citation references in validation errors
+- **EXAMPLE:** "Hours must be 1-60. See [document.pdf, S. 3] for TVöD working hours."
+
+**Integration complexity:** LOW - optional enhancement, not blocking
 
 ---
 
-### RAG Query Flow (Synchronous Phase)
+#### 5. FormState Type (`apps/api/types/form.ts`)
 
-```
-Chat Request
-    │
-    ├─ User message + project context
-    │
-    ▼
-ConversationAnalyzer
-    │
-    ├─ Detect intent type
-    ├─ If intent === 'question' → proceed to RAG
-    │
-    ▼
-VectorstoreService.query()
-    │
-    ├─ Step 1: Check in-memory cache
-    │   └─ Cache key: {projectId}:{question}
-    │   └─ TTL: 24 hours (86400000ms)
-    │   └─ If hit → return cached answer
-    │
-    ├─ Step 2: Generate query embedding
-    │   └─ genAI.models.embedContent({ model: 'text-embedding-004', contents: question })
-    │   └─ Returns: 768-dimensional vector
-    │
-    ├─ Step 3: Semantic search via RPC
-    │   └─ supabase.rpc('match_documents', {
-    │         query_embedding: vector,
-    │         match_threshold: 0.7,
-    │         match_count: 3,
-    │         filter_project_id: projectId
-    │       })
-    │   └─ SQL: Uses cosine similarity (<=> operator)
-    │   └─ Filters: project docs + global docs (project_id IS NULL)
-    │   └─ Returns: Top-k chunks with similarity scores
-    │
-    ├─ Step 4: Combine results
-    │   └─ Join chunks with '\n\n---\n\n' separator
-    │   └─ Fallback: "Ich habe dazu keine spezifischen Informationen..."
-    │
-    ├─ Step 5: Cache result
-    │   └─ Store in Map with timestamp
-    │
-    ▼
-Inject into LLM Prompt
-    │
-    └─ Context added to Gemini request
-    └─ Generate response with enriched context
-```
+**Current role:** State machine data structure.
 
-**Sync Points:**
-- ✅ Embedding generation is synchronous (blocks chat response)
-- ✅ Database query via RPC is synchronous
-- ✅ Cache hit avoids external API call
-- ⚠️ No distributed cache (in-memory only, per-instance)
+**Integration needs:**
+
+**Line 3-40: FormState interface**
+- **ADD:** `conversationId?: string` - UUID for persistence
+- **ADD:** `suggestedResponses?: string[]` - AI-generated quick replies
+- **ALREADY EXISTS:** `conversationContext?: string[]` - message history (line 37)
+- **KEEP:** String array format for backward compatibility (don't break existing state machine)
+
+**Integration complexity:** LOW - type extension, backward compatible
 
 ---
 
-## Sync Patterns
+#### 6. Widget Chat Component (`apps/web/App.tsx`)
 
-### Pattern 1: Dual-Write with Compensating Transaction
+**Current role:** UI for chat interaction with message rendering and progress tracking.
 
-**Scenario:** Upload requires both Storage and Database to succeed
+**Integration needs:**
 
-**Implementation:**
+**Line 23-70: State initialization and config**
+- **ADD:** Load `conversationId` from localStorage on mount
+- **ADD:** Resume conversation if ID exists in localStorage
+- **MODIFY:** Include conversation ID in API requests (line 132)
+
+**Line 112-156: Send message handler**
+- **MODIFY:** Include `conversationId` in payload to `sendMessageToGemini` (line 132)
+- **ADD:** Save conversation ID to localStorage after first response
+- **ADD:** Handle `conversationId` from response
+
+**Line 221-242: Message rendering**
+- **ADD:** Render suggested response chips below bot messages
+- **ADD:** Click handlers for chip selection (calls `handleSendMessage` with chip text)
+- **ADD:** Disable chips after user responds
+
+**New component needed:**
 ```typescript
-// Step 1: Write to Storage first (immutable, no transactions)
-const { data: uploadData, error: storageError } = await supabase.storage
-  .from('project-files')
-  .upload(storagePath, file);
-
-if (storageError) throw new Error('Storage failed');
-
-// Step 2: Write to Database
-const { data: document, error: dbError } = await supabase
-  .from('documents')
-  .insert({ storage_path: storagePath, status: 'pending' });
-
-if (dbError) {
-  // COMPENSATING TRANSACTION: Rollback storage
-  await supabase.storage.from('project-files').remove([storagePath]);
-  throw new Error('Database failed, storage cleaned up');
+// apps/web/src/components/SuggestedResponses.tsx
+interface SuggestedResponsesProps {
+  suggestions: string[];
+  onSelect: (text: string) => void;
+  disabled: boolean;
 }
 ```
 
-**Why this order?**
-- Storage API has no built-in transaction support
-- Database is source of truth for document existence
-- Storage cleanup is easier than DB cleanup (no foreign keys)
-
-**Failure Modes:**
-1. ❌ Storage fails → No cleanup needed, throw immediately
-2. ❌ DB fails after storage → Compensating delete, then throw
-3. ❌ Compensating delete fails → Orphaned file in storage (requires periodic cleanup job)
-
-**Recovery Strategy:**
-- Periodic job to scan storage for files without DB records (future enhancement)
-- Current: Best-effort cleanup, accept small risk of orphaned files
+**Integration complexity:** MEDIUM - UI changes with new component and state
 
 ---
 
-### Pattern 2: Status-Based State Machine
+## New Components
 
-**Scenario:** Track async processing progress
+### 1. Conversation Persistence Service
 
-**Implementation:**
+**Location:** `apps/api/lib/conversation/ConversationService.ts`
+
+**Purpose:** Manage conversation lifecycle with dual-write pattern (DB + client sync).
+
+**Interface:**
+```typescript
+class ConversationService {
+  constructor(supabase: SupabaseClient);
+
+  // Create new conversation
+  async create(projectId: string, metadata?: Record<string, any>): Promise<Conversation>;
+
+  // Load conversation with history
+  async load(conversationId: string): Promise<Conversation | null>;
+
+  // Append message turn (user + assistant)
+  async appendTurn(
+    conversationId: string,
+    userMessage: string,
+    assistantResponse: string,
+    metadata: { intent?: string; extractedData?: Record<string, any> }
+  ): Promise<void>;
+
+  // Update conversation state
+  async updateState(conversationId: string, formState: FormState): Promise<void>;
+
+  // List conversations for admin dashboard
+  async listByProject(projectId: string, limit?: number): Promise<Conversation[]>;
+}
+
+interface Conversation {
+  id: string;
+  project_id: string;
+  created_at: Date;
+  updated_at: Date;
+  completed_at?: Date;
+  form_state: FormState;
+  metadata: Record<string, any>;
+  messages?: ConversationMessage[];
+}
+
+interface ConversationMessage {
+  id: string;
+  conversation_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: Date;
+  intent?: string;
+  extracted_data?: Record<string, any>;
+}
+```
+
+**Database schema:**
 ```sql
--- Status field with enum-like constraint (recommended future enhancement)
-status TEXT CHECK (status IN ('pending', 'processing', 'embedded', 'error'))
-
--- Trigger fires only on 'pending'
-CREATE TRIGGER on_document_created_process_embeddings
-  AFTER INSERT ON documents
-  FOR EACH ROW
-  WHEN (NEW.status = 'pending')
-  EXECUTE FUNCTION trigger_process_embeddings();
-```
-
-**State Transitions:**
-```
-pending (initial)
-    │
-    ├─ Webhook fired → processing
-    │
-    ├─ Success → embedded (terminal)
-    │
-    └─ Failure → error (terminal)
-```
-
-**Idempotency:**
-- Re-processing: Set status back to 'pending' → webhook fires again
-- Duplicate prevention: First action in edge function is status update to 'processing'
-- Old chunks deleted before new ones inserted (Step 7 in processing flow)
-
-**Failure Handling:**
-- Edge function catch block sets status='error'
-- User can manually "Reprocess" via `reprocessDocumentAction()`
-- Reprocess logic: `UPDATE documents SET status='pending' WHERE id={id}`
-
----
-
-### Pattern 3: Webhook-Based Async Dispatch
-
-**Scenario:** Trigger background job without blocking response
-
-**Implementation:**
-```sql
--- Function calls pg_net.http_post (non-blocking)
-CREATE OR REPLACE FUNCTION trigger_process_embeddings()
-RETURNS trigger AS $$
-BEGIN
-  PERFORM net.http_post(
-    url := 'https://project.supabase.co/functions/v1/process-embeddings',
-    headers := jsonb_build_object('Authorization', 'Bearer ' || service_role_key),
-    body := jsonb_build_object('type', TG_OP, 'record', row_to_json(NEW))
-  );
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-```
-
-**Characteristics:**
-- **Non-blocking:** Trigger function returns immediately, HTTP call happens in background
-- **At-least-once delivery:** pg_net may retry on network failures
-- **No guaranteed order:** Multiple documents may process concurrently
-- **Payload:** Full document record (no need for edge function to re-query)
-
-**Reliability:**
-- ✅ Automatic retry on transient network errors (pg_net built-in)
-- ⚠️ No dead letter queue for permanent failures
-- ⚠️ No visibility into webhook delivery failures (check Supabase logs)
-- ✅ Status field provides indirect confirmation (stuck in 'pending' = webhook failed)
-
----
-
-### Pattern 4: Cascade Deletion
-
-**Scenario:** Delete document and all associated chunks
-
-**Implementation:**
-```sql
--- Foreign key with CASCADE
-CREATE TABLE document_chunks (
-  id uuid PRIMARY KEY,
-  document_id uuid REFERENCES documents(id) ON DELETE CASCADE,
-  content text,
-  embedding vector(768)
+-- Conversations table
+CREATE TABLE conversations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id TEXT NOT NULL REFERENCES projects(public_key),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  form_state JSONB NOT NULL,
+  metadata JSONB DEFAULT '{}'::jsonb
 );
+
+-- Conversation messages table
+CREATE TABLE conversation_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  intent TEXT,
+  extracted_data JSONB
+);
+
+-- Indexes
+CREATE INDEX idx_conversations_project ON conversations(project_id);
+CREATE INDEX idx_conversations_created ON conversations(created_at DESC);
+CREATE INDEX idx_messages_conversation ON conversation_messages(conversation_id, created_at);
 ```
 
-**Delete Flow:**
-```typescript
-// 1. Delete file from storage (best effort)
-await supabase.storage.from('project-files').remove([storage_path]);
+**Integration pattern:** Dual-write with eventual consistency
+1. Chat endpoint creates/loads conversation on first message
+2. Appends messages after each turn
+3. Updates state after state machine transitions
+4. Client stores conversation ID in localStorage
+5. Admin dashboard queries for analytics
 
-// 2. Delete document record → cascade to chunks
-await supabase.from('documents').delete().eq('id', documentId);
-```
-
-**Why Storage First?**
-- DB deletion is irreversible and cascades
-- If storage delete fails, DB record remains (can retry)
-- If storage succeeds but DB fails, document is still accessible via DB
-
-**Failure Modes:**
-1. ✅ Storage delete fails → abort, throw error, DB unchanged
-2. ⚠️ Storage succeeds, DB fails → Orphaned storage file (low impact)
-3. ✅ Both succeed → Complete cleanup
-
-**Current Implementation Note:**
-- Storage deletion errors are logged but don't halt DB deletion
-- This is pragmatic: DB is source of truth, orphaned files are low impact
-- Future: Periodic cleanup job for orphaned storage files
+**Complexity:** MEDIUM - new service with database schema
 
 ---
 
-### Pattern 5: Batch Processing with Partial Failure Tolerance
+### 2. Suggested Response Generator
 
-**Scenario:** Embed 100 chunks, some may fail
+**Location:** `apps/api/utils/agent/SuggestionGenerator.ts`
+
+**Purpose:** Generate contextual quick-reply options based on state machine phase.
+
+**Interface:**
+```typescript
+class SuggestionGenerator {
+  constructor(genAI: GoogleGenAI);
+
+  // Generate suggestions for current state
+  async generate(
+    formState: FormState,
+    maxSuggestions?: number
+  ): Promise<string[]>;
+
+  // Get static suggestions (fast fallback)
+  static getStaticSuggestions(formState: FormState): string[];
+}
+```
+
+**Implementation approach:**
+
+**Rule-based suggestions (fast, deterministic):**
+```typescript
+static getStaticSuggestions(formState: FormState): string[] {
+  const section = formState.section;
+  const missing = formState.missingFields?.[0];
+
+  // Summary phase: confirmation options
+  if (section === 'summary' && !missing) {
+    return ['Ja, berechnen', 'Wochenstunden ändern', 'Steuerklasse ändern'];
+  }
+
+  // Job details: common inputs
+  if (section === 'job_details') {
+    if (missing === 'tarif') return ['TVöD', 'TV-L', 'AVR'];
+    if (missing === 'hours') return ['Vollzeit (38,5h)', 'Teilzeit (30h)', '20 Stunden'];
+    if (missing === 'state') return ['Nordrhein-Westfalen', 'Bayern', 'Berlin'];
+  }
+
+  // Tax details: common options
+  if (section === 'tax_details') {
+    if (missing === 'taxClass') return ['Steuerklasse 1 (ledig)', 'Steuerklasse 4 (verheiratet)'];
+    if (missing === 'churchTax') return ['Ja, Kirchenmitglied', 'Nein'];
+    if (missing === 'numberOfChildren') return ['0 Kinder', '1 Kind', '2 Kinder'];
+  }
+
+  return [];
+}
+```
+
+**LLM-based suggestions (dynamic, context-aware fallback):**
+- Used when no static rules match
+- Considers conversation context
+- ~200-500ms latency (non-blocking)
+
+**Integration:** Called during response generation (chat route ~640), included in response payload.
+
+**Complexity:** LOW - isolated service with fast static fallback
+
+---
+
+### 3. Citation Enhancer
+
+**Location:** `apps/api/lib/vectorstore/CitationEnhancer.ts`
+
+**Purpose:** Enrich RAG results with page numbers for better source attribution.
+
+**Interface:**
+```typescript
+class CitationEnhancer {
+  // Extract page number from chunk metadata or estimate from chunk index
+  static extractPageNumber(
+    chunkIndex: number,
+    documentMetadata?: { totalPages?: number; chunksPerPage?: number }
+  ): number | null;
+
+  // Format citation string
+  static formatCitation(filename: string, pageNumber: number | null): string;
+
+  // Enhance RAG results with page numbers
+  static enhanceResults(
+    results: Array<{ content: string; metadata: any }>
+  ): Array<{ content: string; citation: string }>;
+}
+```
 
 **Implementation:**
 ```typescript
-const batchPromises = batch.map(async (chunkText, index) => {
-  try {
-    const embedding = await genAI.models.embedContent({ ... });
-    return { chunk_index: index, content: chunkText, embedding: embedding.values };
-  } catch (e) {
-    console.error(`Failed to embed chunk ${index}`, e);
-    return null; // Partial failure, continue with other chunks
-  }
+static extractPageNumber(chunkIndex: number, chunksPerPage = 5): number | null {
+  // Estimate: 2000 chars per chunk, ~5 chunks per page (A4 page ~10K chars)
+  return Math.floor(chunkIndex / chunksPerPage) + 1;
+}
+
+static formatCitation(filename: string, pageNumber: number | null): string {
+  return pageNumber ? `[${filename}, S. ${pageNumber}]` : `[${filename}]`;
+}
+```
+
+**Integration:** Used in chat route line ~226-239 when formatting RAG context with citations.
+
+**Complexity:** LOW - utility functions, no state
+
+---
+
+## Modified Components
+
+### 1. Chat Route Response Flow
+
+**Before (v1.0):**
+```typescript
+// Line 630-657
+const responseResult = await client.models.generateContent({ ... });
+let responseText = responseResult.text || '';
+
+return NextResponse.json({
+  text: responseText,
+  formState: nextFormState
 });
-
-const results = await Promise.all(batchPromises);
-const validResults = results.filter(r => r !== null);
-
-// Insert only successful chunks
-await supabase.from('document_chunks').insert(validResults);
 ```
 
-**Tradeoff:**
-- ✅ Partial success better than complete failure
-- ⚠️ Document may have incomplete embeddings
-- ⚠️ No record of which chunks failed (future: error_chunks table)
-
-**Alternative Approach (More Strict):**
+**After (v1.1):**
 ```typescript
-// Abort entire document if any chunk fails
-if (validResults.length < chunks.length) {
-  throw new Error(`Only ${validResults.length}/${chunks.length} chunks succeeded`);
-}
-```
+// 1. Load/create conversation
+const conversationId = body.conversationId;
+const conversation = conversationId
+  ? await conversationService.load(conversationId)
+  : await conversationService.create(projectId);
 
-**Current Choice:** Partial tolerance (lenient)
-**Recommendation:** Add chunk-level error tracking for observability
+// 2. Execute state machine (UNCHANGED)
+const stepResult = SalaryStateMachine.getNextStep(nextFormState);
 
----
+// 3. Generate response (UNCHANGED)
+const responseResult = await client.models.generateContent({ ... });
+let responseText = responseResult.text || '';
 
-## Error Recovery
+// 4. Generate suggestions (NEW, parallel with response)
+const suggestions = await suggestionGenerator.generate(nextFormState);
 
-### Failure Mode 1: Storage Upload Fails
-
-**Symptoms:** `storageError` thrown before DB insert
-
-**Impact:**
-- ❌ Document not created
-- ❌ User sees error toast
-- ✅ No cleanup needed (nothing persisted)
-
-**Recovery:**
-- User: Retry upload
-- System: No automated recovery needed
-
-**Prevention:**
-- Validate file size before upload (52MB limit)
-- Validate MIME type client-side
-- Check storage quota/permissions
-
----
-
-### Failure Mode 2: Database Insert Fails After Storage Upload
-
-**Symptoms:** `dbError` thrown, storage file exists
-
-**Impact:**
-- ❌ Document not created in DB
-- ⚠️ Orphaned file in storage (before compensating transaction)
-- ✅ Compensating transaction deletes storage file
-
-**Recovery:**
-```typescript
-if (dbError) {
-  await supabase.storage.from('project-files').remove([storagePath]);
-  throw new Error('Database error, storage cleaned up');
-}
-```
-
-**If Compensating Transaction Also Fails:**
-- Log error with storage path
-- Manual cleanup via Supabase dashboard
-- Future: Periodic cleanup job
-
-**Prevention:**
-- Ensure RLS policies allow document insertion
-- Verify foreign key constraints (project_id valid)
-- Check database quotas
-
----
-
-### Failure Mode 3: Webhook Delivery Fails
-
-**Symptoms:** Document stuck in 'pending' status indefinitely
-
-**Detection:**
-- User observes status not changing
-- Check Supabase Function logs for missing invocations
-- Query: `SELECT * FROM documents WHERE status='pending' AND created_at < NOW() - INTERVAL '10 minutes'`
-
-**Root Causes:**
-- pg_net extension not enabled
-- Edge function endpoint incorrect/unauthorized
-- Network partition between database and function host
-- Edge function cold start timeout
-
-**Recovery:**
-```typescript
-// Manual reprocess via UI button
-export async function reprocessDocumentAction(documentId: string) {
-  await supabase
-    .from('documents')
-    .update({ status: 'pending' })
-    .eq('id', documentId);
-  // Trigger fires again on UPDATE if configured
-}
-```
-
-**Automated Recovery (Future Enhancement):**
-```sql
--- pg_cron job to retry stale pending documents
-SELECT cron.schedule(
-  'retry-stale-pending-docs',
-  '*/10 * * * *', -- Every 10 minutes
-  $$ UPDATE documents
-     SET status = 'pending'
-     WHERE status = 'pending'
-       AND created_at < NOW() - INTERVAL '10 minutes' $$
+// 5. Save conversation turn (NEW)
+await conversationService.appendTurn(
+  conversation.id,
+  message,
+  responseText,
+  { intent: nextFormState.userIntent, extractedData: extraction }
 );
+
+// 6. Return enhanced response (MODIFIED)
+return NextResponse.json({
+  text: responseText,
+  formState: nextFormState,
+  conversationId: conversation.id,
+  suggestions: suggestions
+});
 ```
 
-**Prevention:**
-- Monitor webhook delivery success rate
-- Alert on documents stuck in 'pending' > 5 minutes
-- Health check endpoint for edge functions
+**Complexity:** MEDIUM - orchestration changes
 
 ---
 
-### Failure Mode 4: Edge Function Crashes During Processing
+### 2. RAG Query with Citations
 
-**Symptoms:** Document stuck in 'processing' status
+**Before (v1.0):**
+```typescript
+// Line 204-239
+const ragResults = await vectorstore.queryWithMetadata(message, activeProjectId, 5);
 
-**Impact:**
-- ❌ No embeddings generated
-- ⚠️ Partial chunks may exist (if crash after Step 8)
-- ⚠️ Gemini file not cleaned up (small cost leak)
-
-**Detection:**
-```sql
-SELECT * FROM documents
-WHERE status = 'processing'
-  AND updated_at < NOW() - INTERVAL '5 minutes';
+const contextSection = ragResults.map((r, i) => `
+[Quelle ${i + 1}: ${r.metadata.filename}]
+${r.content}
+`).join('\n---\n');
 ```
 
-**Root Causes:**
-- Out of memory (large PDF)
-- Timeout (Edge function limit: 60 seconds default)
-- Gemini API error (rate limit, service outage)
-- Malformed PDF (text extraction fails)
-
-**Recovery:**
+**After (v1.1):**
 ```typescript
-// Reset to pending (will delete old partial chunks on retry)
-await supabase
-  .from('documents')
-  .update({ status: 'pending' })
-  .eq('id', documentId);
+const ragResults = await vectorstore.queryWithMetadata(message, activeProjectId, 5);
+const enhancedResults = CitationEnhancer.enhanceResults(ragResults);
+
+const contextSection = enhancedResults.map(r => `
+${r.citation}
+${r.content}
+`).join('\n---\n');
 ```
 
-**Prevention:**
-- Add timeout handling in edge function
-- Limit file size upload (current: 52MB)
-- Add retry logic with exponential backoff for Gemini API
-- Catch and log specific error types (OOM vs timeout vs API error)
+**Complexity:** LOW - simple utility swap
 
-**Enhanced Error Handling (Recommendation):**
+---
+
+### 3. Widget Message State
+
+**Before (v1.0):**
 ```typescript
-// Add error_message column to documents table
-try {
-  // ... processing ...
-} catch (error) {
-  await supabase
-    .from('documents')
-    .update({
-      status: 'error',
-      error_message: error.message.substring(0, 500) // Store error details
-    })
-    .eq('id', document.id);
+// Line 3, apps/web/types.ts
+interface Message {
+  id: string;
+  text: string;
+  sender: Sender;
+  timestamp: Date;
+  options?: string[];
+  resultData?: SalaryResultData;
 }
 ```
 
----
-
-### Failure Mode 5: Partial Chunk Embedding Failure
-
-**Symptoms:** `validResults.length < chunks.length`
-
-**Impact:**
-- ⚠️ Document marked 'embedded' but incomplete
-- ⚠️ RAG queries may miss content from failed chunks
-- ✅ Some content still searchable
-
-**Current Behavior:**
-- Silently continues with partial results
-- No indication to user that embedding is incomplete
-
-**Detection:**
-```sql
--- Find documents with suspiciously few chunks
-SELECT d.id, d.filename, COUNT(dc.id) as chunk_count
-FROM documents d
-LEFT JOIN document_chunks dc ON dc.document_id = d.id
-WHERE d.status = 'embedded'
-GROUP BY d.id, d.filename
-HAVING COUNT(dc.id) < 5; -- Heuristic: expect at least 5 chunks
-```
-
-**Recovery:**
-- Reprocess document (delete + re-upload or manual status reset)
-
-**Prevention:**
+**After (v1.1):**
 ```typescript
-// Strict mode: Abort if any chunk fails
-if (validResults.length < chunks.length) {
-  throw new Error(
-    `Partial failure: ${validResults.length}/${chunks.length} chunks embedded`
-  );
+interface Message {
+  id: string;
+  text: string;
+  sender: Sender;
+  timestamp: Date;
+  options?: string[]; // Keep for backward compatibility
+  suggestions?: string[]; // NEW: AI-generated suggestions
+  resultData?: SalaryResultData;
 }
 ```
 
-**Enhanced Logging (Recommendation):**
+**Widget state management (NEW):**
 ```typescript
-// Add chunk-level error tracking
-const failedChunks = chunks.length - validResults.length;
-if (failedChunks > 0) {
-  console.warn(`Document ${document.id}: ${failedChunks} chunks failed embedding`);
-  // Future: Insert into error_log table
-}
-```
+// On mount: restore conversation
+const [conversationId, setConversationId] = useState<string | null>(null);
 
----
-
-### Failure Mode 6: Delete Fails Due to RLS Policy
-
-**Symptoms:** Delete action returns 0 rows deleted
-
-**Impact:**
-- ❌ Document not deleted
-- ❌ User sees "Failed to delete" error
-- ✅ No data loss (safe failure)
-
-**Root Causes:**
-- User lacks project membership (RLS blocks SELECT)
-- User has 'viewer' role (needs 'editor' or 'admin')
-- Project ID mismatch
-
-**Recovery:**
-- Grant user appropriate role in project_members table
-- Or: Admin deletes via Supabase dashboard (bypasses RLS)
-
-**Prevention:**
-- Hide delete button for users without 'editor'/'admin' role
-- Show clear error message indicating permission issue
-- Audit RLS policies for consistency
-
----
-
-### Failure Mode 7: Cascade Delete Fails
-
-**Symptoms:** Database constraint violation on document delete
-
-**Impact:**
-- ❌ Document not deleted
-- ✅ Chunks remain intact (safe failure)
-
-**Root Causes:**
-- Misconfigured foreign key (missing ON DELETE CASCADE)
-- Manual chunk insertion without document_id reference
-
-**Detection:**
-```sql
--- Verify cascade is configured
-SELECT constraint_name, delete_rule
-FROM information_schema.referential_constraints
-WHERE constraint_schema = 'public'
-  AND table_name = 'document_chunks';
--- Expected: delete_rule = 'CASCADE'
-```
-
-**Recovery:**
-```sql
--- Manually delete chunks then document
-DELETE FROM document_chunks WHERE document_id = '<id>';
-DELETE FROM documents WHERE id = '<id>';
-```
-
-**Prevention:**
-- Migration tests to verify cascade behavior
-- Schema validation in CI/CD
-
----
-
-### Failure Mode 8: RAG Query Timeout
-
-**Symptoms:** Embedding generation or RPC call exceeds timeout
-
-**Impact:**
-- ❌ Chat response fails or returns without context
-- ⚠️ User experience degraded
-
-**Root Causes:**
-- Gemini API slow response
-- Large RPC result set (many matching chunks)
-- Cold start latency
-
-**Recovery:**
-```typescript
-// Timeout wrapper
-const queryWithTimeout = async (question: string, timeout = 5000) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const result = await vectorstore.query(question, projectId);
-    clearTimeout(timeoutId);
-    return result;
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      console.warn('RAG query timeout, proceeding without context');
-      return ''; // Graceful degradation
-    }
-    throw error;
+useEffect(() => {
+  const savedId = localStorage.getItem('chatbot_conversation_id');
+  if (savedId) {
+    setConversationId(savedId);
+    // Note: History restored from API, not localStorage (prevents stale data)
   }
+}, []);
+
+// On first response: save conversation ID
+const handleSendMessage = async (text: string) => {
+  const response = await sendMessageToGemini(text, messages, conversationId);
+
+  if (response.conversationId && !conversationId) {
+    localStorage.setItem('chatbot_conversation_id', response.conversationId);
+    setConversationId(response.conversationId);
+  }
+  // ...
 };
 ```
 
-**Prevention:**
-- Cache embeddings (already implemented: 24h TTL)
-- Limit RPC match_count (currently 3, good)
-- Index optimization (HNSW already used)
-- Consider materialized views for frequently accessed chunks
+**Complexity:** LOW - state extension
 
 ---
 
-## Build Order
+## Data Flow Changes
 
-Based on component dependencies, here's the recommended implementation sequence:
+### Before: Stateless Chat (v1.0)
 
-### Phase 1: Storage + Database Foundation
-**Duration:** 2-3 days
-**Components:**
-1. Supabase Storage bucket setup
-2. Database tables (documents, document_chunks)
-3. RLS policies
-4. pgvector extension + HNSW index
+```
+┌─────────┐     ┌──────────────┐     ┌────────────┐
+│ Widget  │────>│ Chat Route   │────>│  Gemini    │
+│         │<────│ (stateless)  │<────│  API       │
+└─────────┘     └──────────────┘     └────────────┘
+                       │
+                       v
+                ┌─────────────┐
+                │  Supabase   │
+                │  (projects, │
+                │  documents) │
+                └─────────────┘
+```
+
+**Characteristics:**
+- No conversation memory beyond in-memory `conversationContext` (last 10 messages)
+- FormState lives only in API response
+- No admin visibility into conversations
+- No analytics or session resume
+
+---
+
+### After: Persistent Conversations (v1.1)
+
+```
+┌─────────┐     ┌──────────────┐     ┌────────────┐
+│ Widget  │────>│ Chat Route   │────>│  Gemini    │
+│  (ID in │<────│ (loads conv) │<────│  API       │
+│ storage)│     └──────┬───────┘     └────────────┘
+└─────────┘            │
+                       v
+                ┌───────────────────────────┐
+                │  Supabase                 │
+                │  ├─ conversations         │
+                │  ├─ conversation_messages │
+                │  ├─ projects              │
+                │  └─ documents             │
+                └───────────┬───────────────┘
+                            ^
+                            │
+                      ┌─────────────┐
+                      │ Admin Dash  │
+                      │ (analytics) │
+                      └─────────────┘
+```
+
+**Characteristics:**
+- Conversation ID persists in localStorage (client) and DB (server)
+- Full history stored for analytics and debugging
+- Admin can view conversation transcripts
+- Session resume across page reloads
+- Multi-device support possible (ID via URL/QR)
+
+---
+
+### Function Calling Flow
+
+**Current (v1.0): Inline calculation**
+```
+User: "Berechne mein Gehalt"
+  │
+  v
+State machine detects summary + confirmation
+  │
+  v
+Inline prompt with all parameters → TaxWrapper.calculate()
+  │
+  v
+Returns formatted result as text
+```
+
+**New (v1.1): Structured tool calling**
+```
+User: "Berechne mein Gehalt"
+  │
+  v
+State machine detects summary + confirmation
+  │
+  v
+GeminiAgent sends with SALARY_TOOL definition
+  │
+  v
+Gemini returns function_call: { name: "calculate_net_salary", args: {...} }
+  │
+  v
+GeminiAgent executes TaxWrapper.calculate(args)
+  │
+  v
+Returns result to Gemini → Gemini formats natural language response
+```
+
+**Benefits:**
+- Structured I/O reduces parsing errors
+- Easier to add new tools (tariff lookup, validation check)
+- Better observability (log tool calls separately)
+- Gemini 2.0+ optimized for function calling
+
+---
+
+### Suggested Responses Flow
+
+```
+User message arrives
+  │
+  v
+State machine processes → determines next state
+  │
+  v
+Response generated (LLM call)
+  │
+  v
+[PARALLEL] SuggestionGenerator.generate(formState)
+  │
+  ├─> Static rules (fast path ~0ms)
+  │     └─> ["TVöD", "TV-L", "AVR"]
+  │
+  └─> LLM generation (fallback ~300ms)
+        └─> ["Vollzeit 38,5 Stunden", "Teilzeit 20 Stunden"]
+  │
+  v
+Response payload: { text, formState, suggestions, conversationId }
+  │
+  v
+Widget renders chips below bot message
+  │
+  v
+User clicks chip OR types manually
+```
+
+**Performance:** Static suggestions ~0ms, LLM suggestions ~200-500ms (non-blocking)
+
+---
+
+## Suggested Build Order
+
+### Phase 1: Conversation Persistence (Foundation)
+**Duration:** 3-4 days
+**Why first:** Foundational data layer for all other features, enables analytics and debugging
+
+**Tasks:**
+1. Database schema (conversations, conversation_messages tables)
+2. ConversationService implementation (create, load, appendTurn, updateState)
+3. Chat route integration (load/save conversation)
+4. Widget localStorage sync (save/restore conversation ID)
+5. Admin dashboard conversation viewer (list conversations)
 
 **Deliverables:**
-- Migration files
-- Storage policies
-- Basic SELECT/INSERT/DELETE operations work
+- Conversations persist across page reloads
+- Admin can view conversation history
+- Session resume works within 1 second
+- RLS policies for conversation access
 
 **Dependencies:** None
-**Validation:** Manual SQL tests
+**Risks:** LOW - isolated to data layer
+**Validation:**
+- Test conversation creation on first message
+- Test session resume after page reload
+- Test admin visibility of conversations
 
 ---
 
-### Phase 2: Upload Service Layer
+### Phase 2: Function Calling Enhancement (Agent Layer)
 **Duration:** 2-3 days
-**Components:**
-1. `uploadDocumentService` with dual-write pattern
-2. `deleteDocumentService` with cascade
-3. Compensating transaction logic
-4. Error handling and logging
+**Why second:** Improves tax calculation reliability, enables future tool expansion
+
+**Tasks:**
+1. Verify SALARY_TOOL definition matches Gemini 2.0 schema
+2. Enhance GeminiAgent function call handling (lines 64-126)
+3. Add comprehensive logging for tool execution
+4. Add error handling for malformed tool calls
+5. Test tool calling with various parameter combinations
 
 **Deliverables:**
-- `apps/api/utils/documents.ts`
-- Unit tests for failure scenarios
+- Tax calculation uses structured function calling exclusively
+- Tool execution metrics logged (latency, success rate)
+- Graceful degradation on tool call errors
 
-**Dependencies:** Phase 1
+**Dependencies:** None (can run parallel with Phase 1)
+**Risks:** LOW - existing pattern, just enhancement
 **Validation:**
-- Test storage-only success
-- Test DB-only failure + rollback
-- Test successful upload end-to-end
+- Test successful tool execution
+- Test malformed parameter handling
+- Verify tool call logs appear
 
 ---
 
-### Phase 3: Upload Controller Layer
+### Phase 3: Suggested Responses (UX Enhancement)
+**Duration:** 3-5 days
+**Why third:** Requires conversation context from Phase 1, significantly improves UX
+
+**Tasks:**
+1. SuggestionGenerator service with static rules
+2. LLM-based suggestion fallback for edge cases
+3. Chat route integration (generate suggestions in parallel with response)
+4. Widget SuggestedResponses component (chip rendering)
+5. Click handler and state management (disable after use)
+
+**Deliverables:**
+- Suggested responses appear below bot messages
+- Chips are context-aware and match current phase
+- Clicking chip sends message automatically
+- Chips disabled after user responds or types
+
+**Dependencies:** Phase 1 (conversation context improves suggestions)
+**Risks:** LOW - UI-only feature with backend support
+**Validation:**
+- Test static suggestions for each phase
+- Test LLM fallback for ambiguous states
+- Test chip click-to-send flow
+
+---
+
+### Phase 4: Validation Improvements (Polish)
+**Duration:** 2-3 days
+**Why fourth:** Optional enhancement, doesn't block core features
+
+**Tasks:**
+1. Enhance ResponseValidator to use vectorstore context for suggestions
+2. Add citation references to validation errors
+3. Test validation with edge cases (unusual inputs)
+4. Update error messages to be more helpful
+
+**Deliverables:**
+- Validation errors reference document sources when available
+- Suggestions are more context-aware
+- Edge cases handled gracefully
+
+**Dependencies:** None (can run parallel with Phase 3)
+**Risks:** LOW - isolated to validation service
+**Validation:**
+- Test validation with document context
+- Test validation without documents (fallback)
+- Verify citation formatting
+
+---
+
+### Phase 5: Citation Quality (Polish)
 **Duration:** 1-2 days
-**Components:**
-1. Server Actions (uploadDocumentAction, deleteDocumentAction)
-2. Authentication checks
-3. UI revalidation
-4. Error responses
+**Why last:** Nice-to-have, doesn't impact core functionality
+
+**Tasks:**
+1. Add page_number column to document_chunks table (nullable)
+2. Update Inngest pipeline to estimate page numbers during chunk creation
+3. CitationEnhancer utility functions
+4. Integrate with RAG query formatting (chat route line ~226-239)
+5. Optional: Backfill existing documents (migration script)
 
 **Deliverables:**
-- `apps/api/app/actions/documents.ts`
-- Integration with Next.js
+- Citations include page numbers when available
+- Format: `[document.pdf, S. 5]`
+- Admin sees improved source references in chat
 
-**Dependencies:** Phase 2
+**Dependencies:** None (can run parallel with Phase 4)
+**Risks:** LOW - isolated enhancement
 **Validation:**
-- Upload via frontend form
-- Error toasts display correctly
-- UI updates after operations
+- Upload new document, verify page numbers in chunks
+- Test RAG query with page number citations
+- Test backward compatibility (documents without page numbers)
 
 ---
 
-### Phase 4: Frontend UI
-**Duration:** 2-3 days
-**Components:**
-1. DocumentManager component
-2. File upload form
-3. Status polling
-4. Delete confirmation dialog
+## Integration Complexity Matrix
 
-**Deliverables:**
-- `apps/api/components/DocumentManager.tsx`
-- Real-time status updates
+| Feature | New Components | Modified Components | DB Schema | UI Changes | Complexity |
+|---------|----------------|---------------------|-----------|------------|------------|
+| Conversation Persistence | ConversationService | Chat route, Widget | 2 tables | localStorage sync | MEDIUM |
+| Function Calling | None | GeminiAgent, Chat route | None | None | LOW |
+| Suggested Responses | SuggestionGenerator | Chat route, Widget | None | New component | MEDIUM |
+| Validation Improvements | None | ResponseValidator | None | Error messages | LOW |
+| Citation Quality | CitationEnhancer | VectorstoreService, RAG format | 1 column | Citation display | LOW |
 
-**Dependencies:** Phase 3
-**Validation:**
-- Upload multiple files
-- View status changes
-- Delete with confirmation
+**Total effort:** 11-17 days (2.2-3.4 weeks)
 
 ---
 
-### Phase 5: Webhook Trigger Setup
-**Duration:** 1 day
-**Components:**
-1. pg_net extension enable
-2. Trigger function
-3. Database trigger creation
-4. Webhook endpoint configuration
+## Performance Considerations
 
-**Deliverables:**
-- `apps/api/migrations/*_setup_embedding_webhook.sql`
-- Environment variables for edge function URL
+### Database Queries
 
-**Dependencies:** Phase 2 (status field must exist)
-**Validation:**
-- Insert document with status='pending'
-- Verify HTTP POST logged in Supabase
-- Confirm edge function receives payload
-
----
-
-### Phase 6: Edge Function - Basic Structure
-**Duration:** 2 days
-**Components:**
-1. Deno HTTP server skeleton
-2. Webhook payload parsing
-3. Status update to 'processing'
-4. Error handling wrapper
-5. Status update to 'error' on failure
-
-**Deliverables:**
-- `supabase/functions/process-embeddings/index.ts` (minimal)
-- Deployment to Supabase
-
-**Dependencies:** Phase 5
-**Validation:**
-- Trigger webhook
-- Verify status changes pending → processing → error
-- Check function logs
-
----
-
-### Phase 7: Document Download & Text Extraction
-**Duration:** 2-3 days
-**Components:**
-1. Storage download logic
-2. Gemini File API upload
-3. LLM-based text extraction
-4. Gemini file cleanup
-
-**Deliverables:**
-- Integration with Gemini SDK
-- Text extraction logic
-- Cleanup on success/failure
-
-**Dependencies:** Phase 6
-**Validation:**
-- Upload PDF
-- Verify text extracted in logs
-- Confirm Gemini file deleted
-
----
-
-### Phase 8: Text Chunking
-**Duration:** 1 day
-**Components:**
-1. RecursiveCharacterTextSplitter integration
-2. Chunk parameter tuning (size, overlap)
-3. Separator configuration
-
-**Deliverables:**
-- Chunking logic in edge function
-- Logging of chunk count
-
-**Dependencies:** Phase 7
-**Validation:**
-- Upload multi-page PDF
-- Verify chunks logged
-- Check chunk sizes in logs
-
----
-
-### Phase 9: Embedding Generation & Storage
-**Duration:** 3-4 days
-**Components:**
-1. Batch embedding generation
-2. Partial failure handling
-3. Old chunk deletion (idempotency)
-4. Batch insertion to document_chunks
-5. Status update to 'embedded'
-
-**Deliverables:**
-- Full embedding pipeline
-- Error handling for partial failures
-- Database insertion
-
-**Dependencies:** Phase 8
-**Validation:**
-- Upload document
-- Query document_chunks table
-- Verify embeddings (768 dimensions)
-- Verify status='embedded'
-
----
-
-### Phase 10: RAG Query Service
-**Duration:** 2-3 days
-**Components:**
-1. VectorstoreService class
-2. Embedding generation for queries
-3. RPC function (match_documents)
-4. In-memory cache
-5. Result formatting
-
-**Deliverables:**
-- `apps/api/lib/vectorstore/VectorstoreService.ts`
-- SQL RPC function
-
-**Dependencies:** Phase 9 (chunks must exist)
-**Validation:**
-- Query with known keywords
-- Verify relevant chunks returned
-- Test cache hit/miss
-
----
-
-### Phase 11: RAG Integration in Chat
-**Duration:** 1-2 days
-**Components:**
-1. Intent detection (question vs data_provision)
-2. Conditional RAG query
-3. Context injection into LLM prompt
-4. Response generation with context
-
-**Deliverables:**
-- Updated chat endpoint
-- Context-aware responses
-
-**Dependencies:** Phase 10
-**Validation:**
-- Ask question about uploaded document
-- Verify answer uses document content
-- Test fallback when no context found
-
----
-
-### Phase 12: Monitoring & Recovery Tools
-**Duration:** 2-3 days
-**Components:**
-1. Reprocess action
-2. Stale document detection query
-3. Error message storage
-4. Admin dashboard for failed docs
-
-**Deliverables:**
-- `reprocessDocumentAction()`
-- Admin UI for retries
-- Logging enhancements
-
-**Dependencies:** Phase 9 (processing must be complete)
-**Validation:**
-- Force error in edge function
-- Reprocess via UI
-- Verify status changes correctly
-
----
-
-### Total Estimated Duration: 20-30 days (4-6 weeks)
-
-### Critical Path:
-Phase 1 → Phase 2 → Phase 3 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9 → Phase 10 → Phase 11
-
-### Parallelizable:
-- Phase 4 (Frontend) can start after Phase 3
-- Phase 12 (Monitoring) can be built in parallel with Phase 10-11
-
----
-
-## Key Architectural Decisions
-
-### 1. Why Dual-Write Instead of Transactional Pattern?
-
-**Rationale:**
-- Supabase Storage is S3-compatible (no transaction support)
-- Database is source of truth, storage is blob store
-- Compensating transactions are simpler than distributed 2PC
-- Industry pattern for storage + DB sync ([AWS Architecture Blog](https://aws.amazon.com/blogs/architecture/building-a-scalable-document-pre-processing-pipeline/))
-
-**Tradeoff:**
-- ⚠️ Risk of orphaned files if compensating delete fails
-- ✅ Simpler implementation
-- ✅ Better performance (no distributed locks)
-
----
-
-### 2. Why Webhook Instead of Queue?
-
-**Rationale:**
-- Supabase provides pg_net + database triggers out-of-box
-- No additional infrastructure needed (vs SQS, Pub/Sub)
-- At-least-once delivery semantics sufficient for our use case
-- Industry pattern for async document processing ([Document Processing Pipeline](https://deepwiki.com/papra-hq/papra/2.3-document-processing-pipeline))
-
-**Tradeoff:**
-- ⚠️ No visibility into delivery failures (rely on status field)
-- ⚠️ No dead letter queue for permanent failures
-- ✅ Zero operational overhead
-- ✅ Native Supabase integration
-
----
-
-### 3. Why Status Field Instead of Separate Job Table?
-
-**Rationale:**
-- Status is intrinsic to document lifecycle
-- Single source of truth (no sync issues between tables)
-- Simpler queries (no JOIN needed)
-- Common pattern for background job tracking ([Background Jobs with Supabase](https://www.jigz.dev/blogs/how-i-solved-background-jobs-using-supabase-tables-and-edge-functions))
-
-**Tradeoff:**
-- ⚠️ No history of processing attempts (can't see retry count)
-- ⚠️ No detailed error messages (would need additional column)
-- ✅ Simpler schema
-- ✅ Easier to query current state
-
-**Future Enhancement:**
+**Conversation load (with history):**
 ```sql
--- Add job history table for auditability
-CREATE TABLE document_processing_jobs (
-  id uuid PRIMARY KEY,
-  document_id uuid REFERENCES documents(id),
-  attempt_number int,
-  started_at timestamptz,
-  completed_at timestamptz,
-  status text,
-  error_message text
-);
+SELECT c.*,
+       json_agg(cm ORDER BY cm.created_at) AS messages
+FROM conversations c
+LEFT JOIN conversation_messages cm ON cm.conversation_id = c.id
+WHERE c.id = $1
+GROUP BY c.id;
+```
+**Expected latency:** <10ms for conversations up to 100 messages
+
+---
+
+### Suggestion Generation
+
+**Static suggestions:** ~0ms (synchronous lookup)
+**LLM suggestions:** 200-500ms (can run in parallel with response generation)
+
+**Optimization strategy:**
+```typescript
+const [responseText, suggestions] = await Promise.all([
+  generateResponse(formState),
+  suggestionGenerator.generate(formState)
+]);
 ```
 
 ---
 
-### 4. Why Cascade Delete Instead of Soft Delete?
+### Citation Enhancement
 
-**Rationale:**
-- Chunks have no independent value (always tied to parent document)
-- Hard delete saves storage costs (embeddings are large)
-- Simpler queries (no need to filter deleted=false)
-- Easier to reason about state
-
-**Tradeoff:**
-- ⚠️ No recovery after accidental delete (could add backup strategy)
-- ⚠️ No audit trail of deletions (could add trigger for audit table)
-- ✅ Simpler application logic
-- ✅ Better performance (no index on deleted column)
+**Cost:** ~5ms for 5 RAG results (pure computation, no I/O)
 
 ---
 
-### 5. Why Partial Failure Tolerance in Embedding?
+### Client-side Storage
 
-**Rationale:**
-- Embedding API can have transient failures
-- Partial document better than no document
-- Allows processing to complete for other chunks
-- Common pattern in batch processing pipelines
-
-**Tradeoff:**
-- ⚠️ User not notified of incomplete embeddings
-- ⚠️ RAG quality degraded for affected documents
-- ✅ Higher success rate overall
-- ✅ Better user experience (not waiting for retries)
-
-**Recommendation:**
-- Add warning indicator on documents with failed chunks
-- Track chunk success rate as metric
-- Consider strict mode for critical documents
+**localStorage size:** ~36 bytes (UUID) per conversation ID
+**Cleanup strategy:** Store only last conversation ID, replace on new chat
 
 ---
 
-## References
+## Security Considerations
 
-Industry research and patterns:
+### Conversation Privacy
 
-- [Document Processing Pipeline - papra-hq](https://deepwiki.com/papra-hq/papra/2.3-document-processing-pipeline)
-- [The Pipeline Pattern - DEV Community](https://dev.to/wallacefreitas/the-pipeline-pattern-streamlining-data-processing-in-software-architecture-44hn)
-- [Webhooks and Asynchronous Processing - Veryfi](https://faq.veryfi.com/en/articles/5588143-webhooks-and-asynchronous-processing)
-- [Document Processing Pipeline for Regulated Industries - AWS Samples](https://github.com/aws-samples/document-processing-pipeline-for-regulated-industries)
-- [Building a Scalable Document Pre-Processing Pipeline - AWS Architecture Blog](https://aws.amazon.com/blogs/architecture/building-a-scalable-document-pre-processing-pipeline/)
-- [Edge Functions Troubleshooting - Supabase Docs](https://supabase.com/docs/guides/functions/troubleshooting)
-- [Edge Functions Architecture - Supabase Docs](https://supabase.com/docs/guides/functions/architecture)
-- [Background Jobs with Supabase Tables and Edge Functions](https://www.jigz.dev/blogs/how-i-solved-background-jobs-using-supabase-tables-and-edge-functions)
+**RLS policy:**
+```sql
+-- Project owners can access their project's conversations
+CREATE POLICY "Project owners access conversations"
+ON conversations
+FOR ALL
+USING (
+  project_id IN (
+    SELECT public_key FROM projects WHERE user_id = auth.uid()
+  )
+);
+```
 
----
-
-## Quality Gate Checklist
-
-- [x] Components clearly defined with boundaries
-  - 8 major components identified with responsibilities
-  - Component interactions mapped
-
-- [x] Data flow direction explicit
-  - Upload flow (synchronous): 6 steps documented
-  - Processing flow (asynchronous): 10 steps documented
-  - Delete flow (synchronous): 7 steps documented
-  - RAG query flow (synchronous): 5 steps documented
-
-- [x] Failure modes and recovery strategies identified
-  - 8 failure modes documented with:
-    - Symptoms
-    - Impact assessment
-    - Root causes
-    - Detection methods
-    - Recovery procedures
-    - Prevention strategies
-
-- [x] Build order implications noted
-  - 12 phases defined with:
-    - Duration estimates
-    - Component deliverables
-    - Dependency chains
-    - Validation criteria
-  - Critical path identified
-  - Parallelization opportunities noted
-  - Total timeline: 4-6 weeks
+**Widget access:** Conversations scoped to project (no user auth), but project ID required
 
 ---
 
-*Architecture research completed: 2026-01-23*
+### Function Calling Safety
+
+**Tool definition validation:**
+- Whitelist allowed tools in SALARY_TOOL config
+- Validate parameters before execution in GeminiAgent
+- Rate limit tool calls (inherited from existing rate limiting)
+
+---
+
+### localStorage Hygiene
+
+**Data stored:**
+- Conversation ID (UUID) - safe to expose, not sensitive
+- No conversation history (prevents XSS exfiltration)
+- No user input (privacy risk)
+- No API responses (PII risk)
+
+---
+
+## Monitoring & Observability
+
+### Metrics to Track
+
+**Conversation metrics:**
+- Conversation creation rate (conversions/hour)
+- Average conversation length (messages per conversation)
+- Completion rate (reached 'completed' state %)
+- Session resume rate (% conversations with >1 session)
+
+**Function calling metrics:**
+- Tool call success rate (%)
+- Tool call latency (P50, P95, P99)
+- Parameter extraction accuracy
+
+**Suggestion metrics:**
+- Suggestion usage rate (clicks vs manual input %)
+- Suggestion relevance (user edits after click %)
+- Generation latency (static vs LLM)
+
+---
+
+### Logging Strategy
+
+**Chat route additions:**
+```typescript
+console.log('[Conversation] Created:', conversationId);
+console.log('[Tool] Executing:', toolCall.name, toolCall.args);
+console.log('[Suggestions] Generated:', suggestions, 'via:', method);
+```
+
+**Error tracking:**
+- Conversation save failures (DB errors)
+- Tool call errors (malformed responses)
+- Suggestion generation timeouts
+
+---
+
+## Migration Path
+
+### Existing Conversations
+
+**Challenge:** Current chats have no conversation ID
+
+**Solution:** Backward compatibility approach
+- New conversations automatically get IDs
+- Existing in-progress sessions continue without IDs
+- User can start new conversation to enable persistence
+
+**No data migration needed** - clean cut between v1.0 (stateless) and v1.1 (persistent)
+
+---
+
+### Database Schema
+
+**Migration order:**
+1. Create conversations table
+2. Create conversation_messages table
+3. Add page_number to document_chunks (nullable, backfill optional)
+4. Deploy code with feature flag (environment variable)
+5. Enable features gradually per project
+
+---
+
+## Success Criteria
+
+**Conversation Persistence:**
+- [ ] Conversations persist across page reloads (<1s load time)
+- [ ] Admin can view conversation history in dashboard
+- [ ] Session resume works reliably
+- [ ] <1% conversation save failures
+
+**Function Calling:**
+- [ ] Tax calculation uses structured tool calls exclusively
+- [ ] Tool call success rate >95%
+- [ ] Tool call latency <500ms P95
+
+**Suggested Responses:**
+- [ ] Suggestions appear for all phases
+- [ ] Click-to-send works reliably
+- [ ] Suggestion usage rate >30% (users prefer chips over typing)
+- [ ] Generation latency <500ms (non-blocking)
+
+**Validation Improvements:**
+- [ ] Validation errors include document references when available
+- [ ] User confusion rate decreases (measured by retry attempts)
+
+**Citation Quality:**
+- [ ] Citations include page numbers when available
+- [ ] Page number accuracy >80%
+
+---
+
+## Conclusion
+
+Chat Intelligence features integrate cleanly into the existing v1.0 architecture with minimal disruption. The state machine (`SalaryStateMachine`), agent orchestration (`GeminiAgent`), and RAG pipeline (`VectorstoreService`) remain unchanged. New features layer on top through four focused additions:
+
+1. **Conversation persistence** - ConversationService with dual-write pattern
+2. **Function calling** - Enhancement to existing GeminiAgent tool execution
+3. **Suggested responses** - SuggestionGenerator with static/LLM fallback
+4. **Citation/validation improvements** - CitationEnhancer utility and validator enhancements
+
+Build order prioritizes foundation (conversation persistence) before UX enhancements (suggestions) and polish (citations). Each phase delivers independent value and can be deployed incrementally.
+
+**Risk assessment:** LOW
+- Features operate independently (no cross-dependencies)
+- Integration at well-defined extension points
+- Existing patterns reused (dual-write, tool calling, metadata enrichment)
+- No fundamental architecture changes required
+
+**Total effort:** 11-17 days (2.2-3.4 weeks) across 5 phases
+
+---
+
+*Architecture research completed: 2026-01-26*
+*Ready for roadmap creation: YES*

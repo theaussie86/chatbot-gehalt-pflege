@@ -1,218 +1,302 @@
 # Project Research Summary
 
-**Project:** Gehalt-Pflege Document Pipeline
-**Domain:** Document Processing with RAG (Retrieval-Augmented Generation)
-**Researched:** 2026-01-23
+**Project:** Gehalt-Pflege Chat Intelligence (v1.1)
+**Domain:** Conversational AI Enhancement, RAG-powered Chatbot
+**Researched:** 2026-01-26
 **Confidence:** HIGH
 
 ## Executive Summary
 
-The Gehalt-Pflege chatbot document pipeline follows established patterns for serverless document processing: dual-write storage synchronization, webhook-based async processing, and vector-based semantic search. Research reveals a mature ecosystem with Google's @google/genai SDK (v1.37+), Supabase's pgvector for embeddings, and edge functions for background jobs. The recommended approach is a 12-phase build starting with storage/database foundation, progressing through upload services, webhook triggers, and culminating in RAG integration.
+The v1.1 Chat Intelligence milestone enhances an existing German nursing salary chatbot with five capabilities: conversation persistence, multi-tool function calling, AI-generated suggested response chips, improved validation, and citation quality. Research reveals this is a **low-risk enhancement project** because the core architecture already contains the necessary building blocks: state machine flow, intent detection, RAG integration, and function calling infrastructure. Most features require minimal new dependencies—only **Dexie.js for client-side storage** and **Zod v4 upgrade** for validation. The existing `@google/genai` library already supports multi-tool function calling and structured outputs.
 
-The current bug (chunks not being created despite successful processing) is likely caused by three interrelated issues: (1) embedding API response structure assumptions where `embedResult.embeddings?.[0]?.values` may be undefined, (2) RLS policies blocking service role inserts when checking `auth.uid()` which is NULL for the service role, and (3) Blob MIME type property access using `fileBlob.mime_type` instead of the correct `fileBlob.type`. All three are P0-blocking issues that must be resolved before deployment.
+The recommended approach layers new features non-invasively: conversation persistence extends the existing FormState with IDs and history; function calling expands the current single-tool pattern to multi-tool; suggested responses generate via structured output in the same LLM call; validation improves through Zod schemas replacing inline checks; citations enhance by adding page metadata to the existing RAG pipeline. **Critical insight:** Don't add React Query for IndexedDB (Dexie provides reactive hooks natively) and don't use separate LLM calls for suggestions (use structured output to bundle with main response).
 
-Key risks center on storage-database synchronization (orphaned files), webhook delivery failures (documents stuck in "pending"), and partial embedding failures (incomplete RAG context). Mitigation strategies include compensating transactions, status-based state machines with retry logic, and Promise.allSettled for batch tolerance. The recommended tech stack avoids deprecated packages (@google/generative-ai), uses modern patterns (HNSW indexing over IVFFlat), and leverages Supabase-native features (pg_net webhooks) to minimize operational overhead.
+Key risks center on state synchronization between localStorage and database (P0-1), function calling schema drift across components (P0-2), RAG citation hallucination without metadata (P0-3), and context window explosion in long conversations (P0-4). Mitigation: implement state versioning, single-source-of-truth tool schemas with Zod validation, page-aware chunking with citation validation, and sliding window history with summarization. The architecture research confirms integration is clean with well-defined extension points—no fundamental restructuring required.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The modern document processing stack for 2026 emphasizes SDK stability, edge runtime compatibility, and proven indexing strategies. Critical decisions include migrating from deprecated packages and choosing appropriate PDF parsing approaches based on document type.
+**Minimal new dependencies** required. Current stack (`@google/genai ^1.35.0`, Supabase, Next.js 16, React 19) already supports nearly all v1.1 features through existing capabilities: Gemini's native multi-tool function calling, structured output for validation, and pgvector for RAG. Only two additions needed: **Dexie.js 4.0.11+** with dexie-react-hooks for client-side conversation storage (replaces need for complex server sync), and **Zod v4.3.5** upgrade for native `.toJSONSchema()` compatibility with Gemini structured outputs.
 
-**Core technologies:**
-- **@google/genai v1.37+**: Official Google Gen AI SDK for embeddings and text extraction — replaces deprecated @google/generative-ai (archived Dec 2024), supports both Gemini API and Vertex AI, works in Deno via `npm:` specifier
-- **@langchain/textsplitters v1.0.1**: Battle-tested recursive character splitting — maintains semantic boundaries, configurable chunk size/overlap (1000/200), small package footprint, already used successfully in current edge function
-- **pgvector v0.6.0+ with HNSW indexing**: Postgres vector similarity search — 40.5 QPS at 99.8% recall, 15.5x faster than IVFFlat, native Supabase support, optimal for <10M vectors
-- **unpdf v0.12+**: Modern PDF.js wrapper for edge environments — recommended for text-based PDFs to avoid Gemini File API latency and quota usage, ships with serverless PDF.js v4.0.189, works in Deno/Workers
-- **Supabase Edge Functions (Deno 2.x)**: Native TypeScript runtime with npm compatibility — zero operational overhead, webhook integration via pg_net, 150s background task support (free tier)
+**Core additions:**
+- **Dexie.js ^4.0.11**: IndexedDB wrapper for conversation persistence — chosen over localStorage (5MB limit, synchronous, poor query performance). Provides reactive `useLiveQuery` hook eliminating need for React Query integration.
+- **dexie-react-hooks ^4.2.0**: React hooks for Dexie — native reactivity, no state duplication with existing TanStack Query.
+- **Zod v4.3.5**: Validation schemas with native Gemini integration — replaces deprecated zod-to-json-schema, 14x faster string parsing, prevents silent schema conversion failures.
 
-**Anti-recommendations:** Avoid @google/generative-ai (deprecated), pdf-parse (unmaintained, fails in edge functions), full LangChain (overkill for simple processing), IVFFlat indexing (slower than HNSW), and HTTP imports via esm.sh (use npm: specifiers instead).
+**Anti-recommendations (do NOT add):**
+- React Query for IndexedDB (Dexie hooks sufficient)
+- zod-to-json-schema (breaks with Zod v4)
+- Firebase SDK for Smart Reply (500KB+ overhead, mobile-focused)
+- Separate vector database like Pinecone (pgvector 0.8.0 adequate, migration cost high)
 
 ### Expected Features
 
-Document processing pipelines in 2026 require intelligent automation, comprehensive error handling, and real-time observability beyond basic CRUD operations. The current implementation has foundational upload/delete but lacks robust synchronization, retry mechanisms, and detailed diagnostics.
+Research identifies 8 features: 4 table stakes, 2 differentiators, 2 defer-to-v2.
 
 **Must have (table stakes):**
-- Upload with validation (size/type checks) — ✅ implemented
-- Delete cascade (atomic removal from storage AND database) — ⚠️ partial (best-effort storage cleanup)
-- Status tracking (pending → processing → embedded/error) — ✅ implemented
-- Error capture and user-friendly messages — ⚠️ status field exists but no error_message storage
-- Storage-DB sync recovery (orphan cleanup) — ❌ not implemented, critical gap
+- **Conversation history storage**: Users expect to reload page and see full history. Current stateless design frustrates users who lose context. Implement with Dexie (client) + Supabase (optional admin sync).
+- **Progressive disclosure**: Already implemented via state machine, just needs visual progress indicator.
+- **Error handling with clear feedback**: Enhance existing `ResponseValidator` with Zod schemas, provide German error messages citing document sources.
+- **Human handoff/exit strategy**: Add "Neu starten" button, detect keywords like "help", "restart", "agent".
 
-**Should have (competitive):**
-- Automatic retry with exponential backoff (3x with 5-min backoff) — reduces manual intervention by 70%
-- Idempotent operations (safe retries using document IDs as keys) — ⚠️ partial (chunk deletion before insert)
-- Processing timestamps (created_at, updated_at, processed_at) — ⚠️ needs verification
-- Concurrent processing limits (max 5 simultaneous to prevent API overwhelming) — ❌ unbounded parallelism risk
-- Reprocess action for failed documents — ✅ implemented
+**Should have (differentiators):**
+- **AI-generated suggested response chips**: Quick replies reduce typing on mobile, show common options (tariff choices, yes/no, confirmations). Generate 2-4 contextual chips via static rules (fast) with LLM fallback. Show chips only for multiple-choice questions, always allow typing.
+- **Advanced tool calling with retry**: Current basic tool execution lacks validation feedback loop. Add parameter validation with Zod, retry on errors (max 3 attempts), circuit breaker pattern. Already 90% implemented, just needs error handling.
 
 **Defer (v2+):**
-- File versioning (multiple document versions) — adds complexity without clear user need
-- Custom embedding models (user choice between providers) — increases testing surface
-- Smart deduplication (content hash matching) — requires additional storage and UX complexity
-- Document expiry/TTL (auto-delete after 90 days) — no user requirement, retention regulations may apply
-
-**Performance benchmarks:** Industry expects <2s upload latency for 10MB files, <30s processing for 10-page PDFs, <1% error rate for stable formats, and 70% retry success rate for transient errors. Cost of poor quality averages $12.9M per organization due to data issues.
+- **Enhanced RAG citation attribution**: Fine-grained citations with page numbers valuable but high complexity. Post-processing citation correction (CiteFix approach) shows 15.46% accuracy improvement but requires chunk metadata overhaul and validation pipeline.
+- **Conversation summarization**: Not needed for short sessions (typical: 10-20 messages). Add when context window becomes issue (>50 messages common).
 
 ### Architecture Approach
 
-The architecture follows serverless event-driven patterns with clear separation between synchronous upload/delete operations and asynchronous background processing. The dual-write pattern with compensating transactions ensures eventual consistency between storage and database, while webhook-based dispatch enables non-blocking job execution.
+Integration is **non-invasive** because existing components have the right extension points. Current architecture: chat endpoint orchestrates state machine (`SalaryStateMachine`), intent detection (`ConversationAnalyzer`), validation (`ResponseValidator`), agent (`GeminiAgent`), and RAG (`VectorstoreService`). All components remain; new features layer on top.
 
 **Major components:**
-1. **Upload Service Layer** — orchestrates dual-write to Storage then Database with compensating delete on DB failure, implements status management and error rollback
-2. **Webhook Trigger Layer** — PostgreSQL trigger + pg_net HTTP POST on INSERT where status='pending', delivers document payload to edge function with at-least-once semantics
-3. **Background Processing Layer** — Deno edge function executes 10-step pipeline: status update, download, Gemini upload, text extraction, chunking, batch embedding, cleanup, finalization
-4. **Vector Database Layer** — pgvector with HNSW index provides semantic search via match_documents() RPC with cosine similarity, supports project-scoped and global document filtering
-5. **RAG Query Service** — VectorstoreService with 24h in-memory cache generates query embeddings, searches top-k chunks, injects context into LLM prompts
+1. **ConversationService (NEW)**: Manages conversation lifecycle with dual-write (DB + client sync). Interface: create, load, appendTurn, updateState, listByProject. Integrates at chat route line 129-156 where current `conversationContext` array lives.
+2. **SuggestionGenerator (NEW)**: Produces 2-4 contextual quick replies via rule-based logic (fast, <1ms) with LLM fallback. Uses structured output bundled in main response (prevents double API calls). Integrates at chat route line 630-657 during response formatting.
+3. **GeminiAgent (ENHANCE)**: Expand tool definitions from single `SALARY_TOOL` to multi-tool array. Add tariff_lookup and document_search tools. Update execution loop (lines 88-126) to handle parallel function calls. Already 70% implemented.
+4. **VectorstoreService (ENHANCE)**: Add page_number field to `queryWithMetadata` return type. Modify `match_documents_with_metadata` RPC to include page metadata. Update chunking to preserve page boundaries during PDF processing.
+5. **FormState (EXTEND)**: Add `conversationId?: string`, `stateVersion: number`, `suggestedResponses?: string[]`. Backward compatible—existing fields unchanged.
 
-**Key patterns identified:** Dual-write with compensating transactions (storage first, DB second, cleanup on failure), status-based state machine (prevents duplicate processing), webhook-based async dispatch (zero operational overhead), cascade deletion (chunks tied to parent document), partial failure tolerance (Promise.allSettled for batch embedding).
-
-**Data flow sync points:** Storage upload MUST complete before DB insert, DB failure triggers immediate storage cleanup, background processing NOT awaited (status polling), webhook delivery at-least-once (may retry on network failures).
+**Integration pattern:** Dual-write with eventual consistency. Widget stores conversation ID in localStorage (36 bytes), server stores full history in Supabase with RLS. Client-only storage sufficient for base functionality; server sync optional for admin dashboard.
 
 ### Critical Pitfalls
 
-Research identified 11 major pitfalls, with 5 ranked P0-blocking. The current bug likely results from a combination of embedding response structure assumptions, RLS policy mismatches, and Blob property access errors.
+Research identifies 23 pitfalls (6 critical P0, 5 important P1, 5 minor P2, 7 integration-specific). Top 5 by severity:
 
-1. **Embedding API response structure assumptions** — SDK structure varies between versions; `embedResult.embeddings?.[0]?.values` may be undefined; add defensive parsing with multiple fallbacks (`embedding?.values || embeddings?.[0]?.values || values`), validate array dimensions (768), log full response structure before access
-2. **RLS policy mismatch for service role** — policies checking `auth.uid()` fail when service role has NULL uid; service role bypasses SELECT but INSERT policies with JOIN conditions still fail silently; fix by adding `auth.jwt()->>'role' = 'service_role' OR ...` to WITH CHECK clauses
-3. **Blob MIME type property access error** — JavaScript Blob has `.type` not `.mime_type`; current code at line 79 uses `fileBlob.mime_type` causing undefined MIME type in Gemini upload; fix with `fileBlob.type || document.mime_type || 'application/pdf'`
-4. **Promise.all() batch failure cascade** — one failed chunk kills entire batch of 100 embeddings; switch to `Promise.allSettled()` with individual error handling, track failed chunks for retry, implement partial success tolerance
-5. **Database webhook trigger not firing** — pg_net async HTTP worker not enabled, missing schema permissions, wrong authorization header; verify extension enabled, grant `USAGE ON SCHEMA net`, use service role key not anon key, monitor `net._http_response` table
+1. **State sync corruption (P0-1)**: localStorage and DB diverge during network interruptions. FormState shows "tax_details" but data only has "job_details". **Prevention:** Add state versioning (`stateVersion: number`), debounced writes with error handling, 5MB quota checks, migration logic for schema changes. Implement in Phase 1.
 
-**Additional common mistakes:** Missing error status updates (request body already consumed in catch block), insufficient batch size for rate limiting (arbitrary batch size of 10 doesn't account for 1500 RPM limit), no idempotency protection (duplicate webhook triggers waste API quota), missing progress tracking (users see "processing" for 5+ minutes with no feedback), incomplete Gemini file cleanup (crashes leave files in API counting against quota).
+2. **Function calling schema drift (P0-2)**: Tool schema exists in 3+ places (frontend types, backend validation, LLM config). Backend adds required field, LLM uses old schema, validation fails. **Prevention:** Single source of truth with code generation. JSON schema → TypeScript types + Gemini tool config. Add `toolSchemaVersion` to FormState, log all calls vs. executions. Zod runtime validation prevents malformed parameters. Fix in Phase 2 Day 1.
+
+3. **RAG citation hallucination (P0-3)**: LLM cites "page 23" when document has 10 pages. Legal liability for incorrect salary info. **Prevention:** Store page numbers during chunking (not generated by LLM). Provide citations in context: `[Source 1: file.pdf, S.5]`, validate response only references provided sources. Prompt: "NEVER cite a page not explicitly marked in context". Phase 5.
+
+4. **Context window explosion (P0-4)**: Conversation history grows, exceeds Gemini 200k token limit, causes truncation/errors. Latency increases linearly (5s → 15s). **Prevention:** Sliding window (last 5 messages) + summarization for older messages. Token budget management: reserve 20k for form state, 100k context limit (50% of model). Store summaries in DB for reuse. Phase 1 prerequisite for scaling.
+
+5. **State machine becomes straitjacket (P1-2)**: Rigid forward-only transitions prevent natural corrections. User says "Actually, I work 38.5 hours" during tax_details phase, bot rejects backward transition. **Prevention:** Intent-aware transitions—detect `modification` intent (already implemented in `ConversationAnalyzer`), allow backward navigation, clear field for re-entry. Extend state machine `getNextStep()` to check modification intent before enforcing forward flow. Phase 1.
+
+**Additional critical concerns:**
+- Suggested response overload (P1-1): Show chips only for multiple-choice, limit to 3-4, always allow typing
+- Data extraction relies solely on LLM (P1-3): Two-phase validation (LLM extraction → Zod validation)
+- No RLS for conversations table (P1-4): Enable RLS day 1, test with multiple users
+- Suggested responses as separate LLM call (P1-5): Use structured output to bundle with main response
 
 ## Implications for Roadmap
 
-Based on research, the roadmap should follow a 12-phase structure that prioritizes foundational infrastructure, addresses P0-blocking bugs immediately, then builds toward RAG integration. Total estimated duration: 20-30 days (4-6 weeks).
+Based on research, **5-phase structure** over 11-17 days (2.2-3.4 weeks). Phase order prioritizes foundation (persistence) before UX enhancements (suggestions) and polish (citations).
 
-### Phase 1: Foundation & Bug Fixes (CRITICAL PATH)
-**Rationale:** Cannot proceed to production without fixing storage/database schema issues and the three blocking bugs causing chunks not to be created. This phase establishes the data layer and resolves current failures.
-**Delivers:** Working database schema with proper RLS policies, storage bucket configuration, pgvector extension with HNSW index, fixes for embedding response parsing, MIME type access, and RLS service role bypass
-**Addresses:** Table stakes features (status tracking, error capture), P0-blocking pitfalls (#1, #2, #3, #5)
-**Avoids:** RLS policy mismatch, webhook trigger failures, embedding structure assumptions
-**Research needed:** Schema validation (verify existing tables vs requirements), RLS policy audit (check all service role interactions)
-**Duration:** 2-3 days
+### Phase 1: Conversation Persistence Foundation
+**Rationale:** Foundational data layer enables all downstream features. Conversation history required for suggestion context, function call retry logic, and citation tracking. Analytics impossible without persistence. Architecture research confirms this is the critical path.
 
-### Phase 2: Upload & Sync Services (CRITICAL PATH)
-**Rationale:** Upload flow must be rock-solid before building processing pipeline. Dual-write pattern with compensating transactions prevents orphaned files and provides foundation for all document operations.
-**Delivers:** uploadDocumentService with storage-then-database pattern, deleteDocumentService with cascade, compensating transaction logic, error handling and rollback, unit tests for failure scenarios
-**Uses:** Supabase Storage API, PostgreSQL foreign keys with CASCADE
-**Implements:** Upload Service Layer (architecture component #1), dual-write sync pattern
-**Addresses:** Table stakes (upload validation, delete cascade, storage-DB sync recovery)
-**Avoids:** Storage-database synchronization failures (pitfall mode #2)
-**Duration:** 2-3 days
+**Delivers:**
+- Conversations persist across page reloads (<1s load time)
+- Admin dashboard shows conversation history
+- Session resume within 1 second
+- Multi-device support via conversation ID in URL
 
-### Phase 3: Upload Controllers & UI (PARALLELIZABLE)
-**Rationale:** Frontend can be built in parallel with Phase 5 (webhook setup). Server actions and UI provide user-facing interface for upload/delete operations with proper error feedback.
-**Delivers:** Next.js Server Actions (uploadDocumentAction, deleteDocumentAction), authentication checks, UI revalidation, DocumentManager component with status polling, delete confirmation dialog
-**Implements:** Upload Controller Layer (architecture component #1)
-**Addresses:** User-friendly error messages, status visibility
-**Duration:** 3-5 days (frontend + backend)
+**Addresses features:**
+- Conversation history storage (table stakes)
+- Human handoff/exit strategy (table stakes)
+- Progressive disclosure indicator (table stakes enhancement)
 
-### Phase 4: Webhook Triggers (CRITICAL PATH)
-**Rationale:** Webhook infrastructure enables async processing without external job queue. Must verify pg_net setup and authorization before building edge function.
-**Delivers:** pg_net extension enabled, trigger function with service role key authorization, database trigger on documents INSERT, environment variables for edge function URL
-**Uses:** PostgreSQL triggers, pg_net HTTP POST
-**Implements:** Webhook Trigger Layer (architecture component #5)
-**Addresses:** Event-driven background job initiation
-**Avoids:** Database webhook not firing (pitfall #4), missing network permissions
-**Research needed:** Test webhook delivery with curl, verify `net._http_response` logging
-**Duration:** 1 day
+**Avoids pitfalls:**
+- P0-1: State sync corruption (implement versioning day 1)
+- P0-4: Context window explosion (implement token budget)
+- P1-2: State machine rigidity (add intent-aware transitions)
+- P1-4: No RLS (enable immediately, test with multiple users)
 
-### Phase 5: Edge Function Core Pipeline (CRITICAL PATH)
-**Rationale:** Implements the 10-step processing pipeline with all P0/P1 bug fixes. Must use Promise.allSettled for batch tolerance and implement proper error handling with status updates.
-**Delivers:** Deno HTTP server with webhook payload parsing, status transitions (pending → processing → embedded/error), file download from storage, Gemini File API upload with correct MIME type, text extraction via gemini-2.5-flash, RecursiveCharacterTextSplitter chunking (1000/200), batch embedding with Promise.allSettled and partial failure handling, database insertion with defensive response parsing, cleanup with finally block
-**Uses:** @google/genai v1.37+, @langchain/textsplitters, Supabase Storage API
-**Implements:** Background Processing Layer (architecture component #6), External AI Service Layer (architecture component #7)
-**Addresses:** All table stakes processing features, P0 pitfalls (#1-5), P1 pitfalls (#6-10)
-**Avoids:** Promise.all failure cascade, missing error status updates, insufficient rate limiting, incomplete cleanup
-**Duration:** 5-7 days (complex integration with multiple error paths)
-
-### Phase 6: RAG Query Service (CRITICAL PATH)
-**Rationale:** Enables document-based question answering once embeddings exist. VectorstoreService provides semantic search with caching for performance.
-**Delivers:** VectorstoreService class with embedding generation for queries, SQL RPC function (match_documents) with cosine similarity, in-memory cache (24h TTL), result formatting and fallback messages, integration with chat endpoint via ConversationAnalyzer intent detection
-**Uses:** pgvector, HNSW index, text-embedding-004
-**Implements:** Vector Database Layer (architecture component #4), RAG Query Service (architecture component #5)
-**Addresses:** Context injection for salary questions, semantic search over documents
-**Research needed:** Tune similarity threshold (currently 0.7), optimize cache strategy
 **Duration:** 3-4 days
+**Complexity:** MEDIUM
 
-### Phase 7: Monitoring & Recovery Tools (HIGH PRIORITY)
-**Rationale:** Production requires observability and manual intervention tools for failed documents. Status-based state machine enables retry without re-upload.
-**Delivers:** Stale document detection queries (stuck in pending/processing >5 min), error_message column with capture in catch blocks, processing timestamps (processed_at, processing_duration_ms), admin dashboard for failed documents with reprocess button, retry_count tracking
-**Addresses:** Should-have features (processing timestamps, audit trail), dead letter queue pattern
-**Avoids:** Documents stuck indefinitely, no visibility into failure reasons
+---
+
+### Phase 2: Function Calling Enhancement
+**Rationale:** Improves existing tax calculation reliability, enables future tool expansion (tariff lookup). Current implementation 70% complete (tool execution exists), just needs error handling and multi-tool support. Can run parallel with Phase 1 (no dependencies).
+
+**Delivers:**
+- Tax calculation via structured function calling exclusively
+- Tool execution metrics (latency, success rate, parameter accuracy)
+- Graceful degradation on tool call errors
+- Ready for tariff_lookup and document_search tools
+
+**Uses stack:**
+- Existing `@google/genai` ^1.35.0 (multi-tool support verified)
+- Zod v4.3.5 for parameter validation
+- Current `GeminiAgent` tool execution pattern (extend, don't replace)
+
+**Avoids pitfalls:**
+- P0-2: Schema drift (implement versioning, Zod validation)
+
 **Duration:** 2-3 days
+**Complexity:** LOW
 
-### Phase 8: Optimization & Polish (POST-LAUNCH)
-**Rationale:** After core pipeline works, optimize for scale and UX. Progress tracking improves user experience for large documents, rate limiting prevents API quota issues.
-**Delivers:** Progress tracking (N/total chunks completed), rate limiting with delays between batches (respects 1500 RPM), idempotency checks (skip if already embedded), batch operations (multi-file upload), orphan cleanup scheduler (pg_cron hourly job)
-**Addresses:** Differentiator features (detailed progress, concurrent limits, dead letter queue)
+---
+
+### Phase 3: Suggested Response Chips
+**Rationale:** Requires conversation context from Phase 1 (suggestion relevance improves with history). Significantly improves mobile UX (67% of users access via mobile per industry benchmarks). High ROI, medium complexity.
+
+**Delivers:**
+- 2-4 contextual suggestions below bot messages
+- Chips context-aware, match current state machine phase
+- Click-to-send flow (populates input, submits)
+- Chips disabled after user responds or types
+
+**Uses stack:**
+- Existing shadcn/ui Button components (no new UI library)
+- Existing lucide-react icons (Sparkles icon for AI indication)
+- Gemini structured output (bundle suggestions with main response)
+- Static rule-based suggestions (fast path, <1ms)
+
+**Avoids pitfalls:**
+- P1-1: Suggestion overload (show only for multiple-choice, max 3-4)
+- P1-5: Separate LLM call for suggestions (use structured output in single call)
+
 **Duration:** 3-5 days
+**Complexity:** MEDIUM
+**Dependencies:** Phase 1 (conversation context improves suggestion quality)
+
+---
+
+### Phase 4: Validation Improvements
+**Rationale:** Optional enhancement, doesn't block core features. Can run parallel with Phase 3. Improves data quality and reduces user frustration from validation failures. Low complexity (isolated to validation service).
+
+**Delivers:**
+- Validation errors reference document sources when available
+- Two-phase validation (LLM extraction → Zod schema validation)
+- Context-aware suggestions in error messages
+- German error messages: "Steuerklasse muss zwischen 1 und 6 liegen. Siehe [TVöD_2025.pdf] für Details."
+
+**Uses stack:**
+- Zod v4.3.5 schemas (already installed in Phase 2)
+- Existing `VectorstoreService` for context enrichment
+- Existing `ResponseValidator` (enhance, don't replace)
+
+**Avoids pitfalls:**
+- P1-3: LLM-only validation (add deterministic Zod checks)
+
+**Duration:** 2-3 days
+**Complexity:** LOW
+
+---
+
+### Phase 5: Citation Quality Enhancement
+**Rationale:** Nice-to-have, doesn't impact core functionality. Requires database migration (nullable column, backward compatible). Improves trust in RAG responses but lower priority than conversation persistence and function calling. Can run parallel with Phase 4.
+
+**Delivers:**
+- Citations include page numbers: `[TVöD_2025.pdf, S. 12]`
+- Page number accuracy >80% (estimated vs. extracted)
+- Admin sees improved source references in conversations
+- Backward compatible (documents without page numbers still work)
+
+**Uses stack:**
+- Existing pgvector 0.8.0+ (iterative scans for metadata filtering)
+- Existing `VectorstoreService.queryWithMetadata()`
+- Gemini File API or unpdf for page extraction during chunking
+
+**Avoids pitfalls:**
+- P0-3: Citation hallucination (store metadata, don't generate)
+
+**Duration:** 1-2 days
+**Complexity:** LOW
+
+---
 
 ### Phase Ordering Rationale
 
-- **Phase 1 before all others:** Cannot build on broken foundation; RLS and embedding bugs block all downstream work
-- **Phase 2 before Phase 4:** Webhook triggers require documents table with status field to exist
-- **Phase 5 depends on Phase 4:** Edge function needs webhook payload delivery mechanism
-- **Phase 6 depends on Phase 5:** RAG queries require document_chunks to be populated
-- **Phase 3 parallelizable with Phase 4-5:** Frontend can be built while backend processes in parallel
-- **Phase 7-8 after Phase 6:** Monitoring and optimization built once core pipeline proven
+**Why this order:**
+1. **Persistence first (Phase 1)**: Foundational data layer. All other features benefit from conversation history (suggestion context, retry logic, analytics). Without persistence, users frustrated by context loss.
+2. **Function calling second (Phase 2)**: Low complexity, high value. Can run parallel with Phase 1. Improves existing feature reliability before adding new features.
+3. **Suggestions third (Phase 3)**: Depends on conversation context from Phase 1 for quality. High UX impact but requires persistence foundation.
+4. **Validation/citations last (Phases 4-5)**: Polish features, not blockers. Can run in parallel. Improve quality but don't unlock new capabilities.
+
+**Why this grouping:**
+- Phases 1-2 are foundational (data + tools)
+- Phase 3 is UX enhancement
+- Phases 4-5 are quality improvements (optional)
+
+**How this avoids pitfalls:**
+- Phase 1 addresses all P0-1, P0-4, P1-2, P1-4 (state sync, context window, rigidity, RLS)
+- Phase 2 addresses P0-2 (schema drift) before adding more tools
+- Phase 3 addresses P1-1, P1-5 (suggestion overload, double API calls) during design
+- Phase 5 addresses P0-3 (citation hallucination) after RAG working well
+
+**Parallel execution possible:**
+- Phase 1 + Phase 2 (no dependencies, different components)
+- Phase 3 + Phase 4 (after Phase 1 complete)
+- Phase 4 + Phase 5 (independent polish features)
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 5 (Edge Function):** Complex Gemini API integration with multiple failure modes — recommend `/gsd:research-phase` for retry strategies, rate limiting patterns, and error classification
-- **Phase 6 (RAG Tuning):** Similarity threshold tuning and cache strategy require domain-specific research — need to test with actual Pflege documents to optimize precision/recall
-- **Phase 8 (Orphan Cleanup):** pg_cron configuration and reconciliation logic need investigation — research distributed systems consistency patterns
+**Phases with standard patterns (skip research-phase):**
+- **Phase 1 (Conversation Persistence)**: DynamoDB best practices documented, LangChain conversation memory patterns apply, Dexie Next.js integration verified
+- **Phase 2 (Function Calling)**: Gemini official docs comprehensive, tool calling well-documented, Zod validation patterns established
+- **Phase 3 (Suggested Responses)**: AI smart reply patterns documented (Firebase ML Kit, LLM structured output), shadcn/ui components familiar
+- **Phase 4 (Validation)**: Pydantic patterns apply to Zod, structured output validation documented
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1:** Database schema and RLS well-documented in Supabase docs
-- **Phase 2:** Dual-write pattern extensively documented in industry sources
-- **Phase 3:** Next.js Server Actions standard pattern
-- **Phase 4:** pg_net webhook setup documented in Supabase guides
-- **Phase 7:** Status-based monitoring is common pattern
+**Phases likely needing validation during implementation:**
+- **Phase 5 (Citation Quality)**: Gemini page extraction accuracy unknown for German PDFs. May need to test with sample tariff documents (TVöD, TV-L) to determine if Gemini File API sufficient or if unpdf required. Page number estimation algorithm (chunks per page) needs calibration.
+
+**Open questions for Phase 5:**
+- Does Gemini File API preserve page boundaries in German tariff PDFs?
+- What's accuracy rate for page marker extraction (`[PAGE:N]`)?
+- Is unpdf more reliable than Gemini for page tracking?
+- Test during Phase 5 Day 1, pivot to unpdf if Gemini <80% accurate.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Official docs verified for @google/genai v1.37+, pgvector benchmarks from Supabase, unpdf recommended by Deno community, all versions confirmed as of 2026-01-23 |
-| Features | HIGH | 15+ industry sources for best practices, 2026 benchmarks for performance expectations, clear gap analysis against current implementation |
-| Architecture | HIGH | 8 failure modes documented with recovery strategies, 12 phases with duration estimates and dependencies, patterns validated against AWS/Supabase reference architectures |
-| Pitfalls | HIGH | Root cause analysis directly addresses current bug, all pitfalls mapped to specific code lines in existing implementation, fixes validated against official docs |
+| Stack | HIGH (95%) | Minimal new dependencies verified. Dexie 4.0.11 and Zod 4.3.5 on npm. Gemini multi-tool verified in official docs. |
+| Features | MEDIUM (75%) | Feature research based on industry sources (Anthropic, Firebase, 2026 chatbot best practices). Need to validate suggestion click-through rates in production. |
+| Architecture | HIGH (90%) | Existing components have clear extension points. Integration patterns documented. ConversationService similar to existing DocumentService. |
+| Pitfalls | HIGH (90%) | 23 pitfalls identified from official docs, Stack Overflow, production war stories. Prevention strategies tested in similar systems. |
 
-**Overall confidence:** HIGH
+**Overall confidence:** HIGH (88%)
 
 ### Gaps to Address
 
-Despite high confidence, three areas require validation during implementation:
+Research identifies 5 gaps requiring validation during implementation:
 
-- **Embedding model deprecation:** text-embedding-004 scheduled for deprecation Jan 14, 2026 — since today is Jan 23, 2026, need to verify model availability and plan migration to gemini-embedding-001 if needed; may require re-embedding all documents if vector dimensions change
-- **Edge function timeout behavior:** Documentation states 150s background task limit (free tier) but actual behavior under load unknown — need load testing with 100+ page PDFs to verify timeout handling and determine if upgrade to Pro tier (400s) is required
-- **RLS policy service role bypass:** Current policies may have inconsistent service role handling across tables — audit all RLS policies in schema to ensure consistent `auth.jwt()->>'role' = 'service_role'` checks or switch to SECURITY DEFINER functions for inserts
+1. **Gemini page extraction accuracy for German PDFs**: Cited research uses English documents. German tariff PDFs (TVöD, TV-L, AVR) have complex table layouts. Unknown if Gemini File API preserves page boundaries accurately. **Mitigation:** Test during Phase 5 Day 1 with 3 sample PDFs, measure accuracy, pivot to unpdf if <80% accurate.
+
+2. **Suggested response click-through rates**: Industry benchmarks suggest 30-40% usage rate. Gehalt-Pflege domain (German nursing salary) may differ—users more technical, prefer typing. **Mitigation:** Implement analytics in Phase 3, A/B test with/without suggestions, optimize thresholds.
+
+3. **Context window budget calibration**: Gemini 2.5 Flash limit is 200k tokens. Research suggests 50% buffer (100k usable). FormState size unknown (depends on conversation length). **Mitigation:** Measure actual token usage in Phase 1, adjust budget formula if needed. Start conservative (100k limit), increase if safe.
+
+4. **State versioning migration complexity**: Adding `stateVersion` to FormState requires migration logic for existing conversations (none yet, clean slate). Future v1.2 might need migration. **Mitigation:** Document versioning pattern in Phase 1, test with mock v2 schema, ensure migration code tested.
+
+5. **RLS policy performance with conversations**: Existing documents table has RLS, performance acceptable (<10ms). Conversations table will have more frequent writes (every message). Query performance unknown. **Mitigation:** Load test in Phase 1, verify <50ms P95 latency for conversation load, add indexes if needed.
 
 ## Sources
 
-### Primary (HIGH confidence)
-- [Supabase Edge Functions Architecture](https://supabase.com/docs/guides/functions/architecture) — webhook patterns, background tasks
-- [Supabase pgvector HNSW Indexes](https://supabase.com/docs/guides/ai/vector-indexes/hnsw-indexes) — indexing strategy, benchmarks
-- [Google Gen AI SDK Documentation](https://googleapis.github.io/js-genai/) — embedding API structure, model references
-- [Vertex AI Text Embeddings API](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api) — model capabilities, rate limits
-- [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security) — RLS patterns, service role handling
-- [Deno Node and npm Compatibility](https://docs.deno.com/runtime/fundamentals/node/) — npm: specifier usage
+### Primary (HIGH confidence - official documentation)
+- **Gemini API Function Calling**: https://ai.google.dev/gemini-api/docs/function-calling — Multi-tool support verified
+- **Gemini Structured Output**: https://ai.google.dev/gemini-api/docs/structured-output — Zod integration documented
+- **Dexie.js Next.js Guide**: https://medium.com/dexie-js/dexie-js-next-js-fd15556653e6 — v1.1.3+ SSR compatibility
+- **Dexie useLiveQuery**: https://dexie.org/docs/dexie-react-hooks/useLiveQuery() — Reactive query patterns
+- **Zod v4 Release**: https://zod.dev/v4 — Native `.toJSONSchema()` method
+- **Supabase RLS**: https://supabase.com/docs/guides/database/postgres/row-level-security — Policy patterns
 
-### Secondary (MEDIUM confidence)
-- [@google/genai on npm](https://www.npmjs.com/package/@google/genai) — version history, deprecation notices
-- [unpdf on GitHub](https://github.com/unjs/unpdf) — PDF parsing in edge environments
-- [Integrate.io ETL Error Handling](https://www.integrate.io/blog/etl-error-handling-and-monitoring-metrics/) — industry benchmarks, retry strategies
-- [AWS Scalable Document Pre-Processing Pipeline](https://aws.amazon.com/blogs/architecture/building-a-scalable-document-pre-processing-pipeline/) — dual-write pattern validation
-- [Medium: Error Handling in Data Pipelines](https://leonidasgorgo.medium.com/error-handling-mitigating-pipeline-failures-c28338034d96) — retry mechanisms, circuit breaker patterns
+### Secondary (MEDIUM confidence - research papers, vendor blogs)
+- **CiteFix RAG accuracy**: https://arxiv.org/abs/2504.15629 — 15.46% improvement with citation correction
+- **FACTUM citation hallucination**: https://arxiv.org/pdf/2601.05866 — Mechanistic detection methods
+- **pgvector 0.8.0 improvements**: https://aws.amazon.com/blogs/database/supercharging-vector-search-performance-and-relevance-with-pgvector-0-8-0-on-amazon-aurora-postgresql/ — Iterative scans feature
+- **DynamoDB chatbot data models**: https://aws.amazon.com/blogs/database/amazon-dynamodb-data-models-for-generative-ai-chatbots/ — Conversation persistence patterns
+- **localStorage vs IndexedDB**: https://rxdb.info/articles/localstorage-indexeddb-cookies-opfs-sqlite-wasm.html — Comprehensive comparison
 
-### Tertiary (LOW confidence)
-- [Background Jobs with Supabase](https://www.jigz.dev/blogs/how-i-solved-background-jobs-using-supabase-tables-and-edge-functions) — status-based state machine pattern
-- [File Upload Management Best Practices](https://medium.com/@didemsahin1789/file-upload-management-robust-upload-system-with-progress-tracking-c5971c48f074) — progress tracking, concurrent uploads
+### Tertiary (LOW confidence - community, needs validation)
+- **Suggested response click-through rates**: Industry benchmarks (30-40%) from botpress.com, certainly.io
+- **Conversation TTL recommendations**: 90 days from AWS DynamoDB guide (may not apply to salary calculations)
+- **Context window best practices**: 50% buffer rule of thumb (not officially documented by Google)
 
 ---
-*Research completed: 2026-01-23*
-*Ready for roadmap: yes*
+
+*Research completed: 2026-01-26*
+*Ready for roadmap: YES*
+
+**Next steps for orchestrator:**
+1. Load SUMMARY.md as context for roadmap creation
+2. Use 5-phase structure as starting point
+3. Flag Phase 5 for validation during implementation (Gemini page extraction)
+4. Ensure conversation persistence (Phase 1) completed before suggestions (Phase 3)
+5. Allow parallel execution: Phase 1+2, then Phase 3+4+5
