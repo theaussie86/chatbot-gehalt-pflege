@@ -49,7 +49,13 @@ Documents uploaded by admins must reliably become searchable context for the cha
 
 ### Active
 
-(None — fresh requirements defined in next milestone)
+**Milestone v1.1 — Chat Intelligence**
+
+- [ ] Conversation persistence with session resume, analytics, admin visibility
+- [ ] Function calling for structured tax calculation tool calls
+- [ ] AI-driven suggested response chips (clickable options)
+- [ ] Validation improvements for data extraction
+- [ ] Citation quality with document name + page number
 
 ### Out of Scope
 
@@ -98,4 +104,4 @@ Documents uploaded by admins must reliably become searchable context for the cha
 | 2000 char chunks / 100 overlap | Balances coherence with retrieval granularity | Good |
 
 ---
-*Last updated: 2026-01-25 after v1.0 milestone*
+*Last updated: 2026-01-26 after v1.1 milestone start*

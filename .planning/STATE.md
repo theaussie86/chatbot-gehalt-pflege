@@ -1,25 +1,30 @@
-# Project State: Gehalt-Pflege Document Pipeline
+# Project State: Gehalt-Pflege Chat Intelligence
 
 **Project:** Gehalt-Pflege Document Pipeline
-**Current Phase:** Milestone complete
-**Current Plan:** None
-**Status:** v1.0 shipped - awaiting next milestone
+**Current Phase:** Not started (defining requirements)
+**Current Plan:** —
+**Status:** Defining requirements for v1.1
 
 ## Project Reference
 
-**File:** .planning/PROJECT.md (updated 2026-01-25)
+**File:** .planning/PROJECT.md (updated 2026-01-26)
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** Planning next milestone
+**Current focus:** v1.1 Chat Intelligence milestone
 
 ## Current Position
 
-**Milestone v1.0 SHIPPED**
+**Milestone v1.1 — Chat Intelligence**
 
-**Last activity:** 2026-01-25 — v1.0 milestone complete
+**Last activity:** 2026-01-26 — Milestone v1.1 started
 
-**Next action:** Run `/gsd:new-milestone` to define v1.1
+**Target features:**
+- Conversation persistence (session resume, analytics, admin visibility)
+- Function calling for tax calculation
+- AI-driven suggested response chips
+- Validation improvements
+- Citation quality (document name + page)
 
 ## Progress
 
@@ -83,5 +88,5 @@ None — all resolved during v1.0
 
 ---
 
-*Last updated: 2026-01-25*
-*v1.0 milestone shipped*
+*Last updated: 2026-01-26*
+*v1.1 milestone started*
