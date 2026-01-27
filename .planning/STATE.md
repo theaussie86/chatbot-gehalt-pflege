@@ -1,9 +1,10 @@
 # Project State: Gehalt-Pflege Chat Intelligence
 
 **Project:** Gehalt-Pflege Document Pipeline
-**Current Phase:** Not started (defining requirements)
+**Current Milestone:** v1.1 Chat Intelligence
+**Current Phase:** Phase 7 of 11 (Conversation Persistence)
 **Current Plan:** —
-**Status:** Defining requirements for v1.1
+**Status:** Ready to plan
 
 ## Project Reference
 
@@ -11,82 +12,113 @@
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** v1.1 Chat Intelligence milestone
+**Current focus:** v1.1 Chat Intelligence milestone — conversation persistence, function calling, suggested responses, validation, citations
 
 ## Current Position
 
-**Milestone v1.1 — Chat Intelligence**
+**Milestone:** v1.1 Chat Intelligence (Phases 7-11)
 
-**Last activity:** 2026-01-26 — Milestone v1.1 started
+Phase: 7 of 11 (Conversation Persistence)
+Plan: — (phase planning not started)
+Status: Ready to plan
+Last activity: 2026-01-26 — Roadmap created for v1.1 milestone
 
-**Target features:**
-- Conversation persistence (session resume, analytics, admin visibility)
-- Function calling for tax calculation
-- AI-driven suggested response chips
-- Validation improvements
-- Citation quality (document name + page)
+Progress: [████████████░░░░░░░░] 57% (14/24+ plans across all milestones)
 
-## Progress
+## Performance Metrics
 
-```
-[MILESTONE COMPLETE] v1.0 Document Pipeline
+**Velocity (v1.0 baseline):**
+- Total plans completed: 14
+- Milestone v1.0: 6 phases, 14 plans
+- Average duration: Data from v1.0 execution
+- Total execution time: Data from v1.0 execution
 
-Phase 1: Database & Storage Foundation ........ SHIPPED | 1/1 plans
-Phase 2: Atomic File Operations ............... SHIPPED | 3/3 plans
-Phase 3: Status & Error Tracking .............. SHIPPED | 3/3 plans
-Phase 4: Durable Document Processing .......... SHIPPED | 4/4 plans
-Phase 5: Error Recovery ....................... SHIPPED | 1/1 plans
-Phase 6: RAG Integration ...................... SHIPPED | 2/2 plans
+**By Phase (v1.0):**
 
-Total: 6 phases, 14 plans, 16 requirements — ALL COMPLETE
-```
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 1. Database & Storage Foundation | 1 | — | — |
+| 2. Atomic File Operations | 3 | — | — |
+| 3. Status & Error Tracking | 3 | — | — |
+| 4. Durable Document Processing | 4 | — | — |
+| 5. Error Recovery | 1 | — | — |
+| 6. RAG Integration | 2 | — | — |
+
+**v1.1 Progress:**
+- Phases planned: 5 (Phases 7-11)
+- Plans created: 0
+- Plans completed: 0
+
+*Updated after each plan completion*
 
 ## Accumulated Context
 
-### Decisions (Summary)
+### Decisions
 
 Full decision log in PROJECT.md Key Decisions table.
 
-Key patterns established:
+**Established patterns from v1.0:**
 - Inngest for durable processing with automatic retries
-- DB-first delete pattern for atomicity
-- Service role RLS via JWT claim check
-- Error history as array in JSONB field
-- 0.75 similarity threshold for RAG
+- DB-first delete pattern prevents orphaned DB records
+- Service role RLS via JWT claim for edge function auth
+- Promise.allSettled for batch fault tolerance
+- 0.75 similarity threshold for RAG quality
 
-### Resolved Blockers
+**v1.1 architectural decisions (from research):**
+- Dexie.js 4.0.11+ for client-side conversation storage (not React Query for IndexedDB)
+- Zod v4.3.5 upgrade for native Gemini structured output
+- Dual-write pattern: localStorage (client) + Supabase (admin sync)
+- State versioning with stateVersion field for migration safety
+- Sliding window history (last 5 messages) + summarization for context window management
 
-All v1 blockers resolved:
-- RLS policies fixed for service role INSERT
-- Embedding API parsing made defensive
-- Blob MIME type property corrected
-- Gemini file response structure fixed
-- Realtime subscription enabled
+### Pending Todos
 
-### Open Blockers
+None yet for v1.1.
 
-None
+### Blockers/Concerns
+
+**From research (to address during phases):**
+
+Phase 7 must address:
+- P0-1: State sync corruption (implement versioning, debounced writes, quota checks)
+- P0-4: Context window explosion (sliding window + summarization)
+- P1-2: State machine rigidity (intent-aware transitions)
+- P1-4: RLS policies for conversations table (enable day 1)
+
+Phase 8 must address:
+- P0-2: Function calling schema drift (single source of truth, Zod validation)
+
+Phase 9 must address:
+- P1-1: Suggested response overload (3-4 chips max, multiple-choice only)
+- P1-5: Separate LLM call for suggestions (use structured output in main call)
+
+Phase 10 must address:
+- P1-3: Data extraction relies solely on LLM (two-phase validation)
+
+Phase 11 must address:
+- P0-3: RAG citation hallucination (store page metadata, don't generate)
 
 ### Open Questions
 
-None — all resolved during v1.0
+**Phase 11 (Citation Quality):**
+- Does Gemini File API preserve page boundaries in German tariff PDFs?
+- What's accuracy rate for page marker extraction?
+- Is unpdf more reliable than Gemini for page tracking?
+- Test during Phase 11 Day 1, pivot to unpdf if Gemini <80% accurate
 
 ## Session Continuity
 
-**Last command:** `/gsd:complete-milestone v1`
+**Last command:** Roadmap creation for v1.1
 
-**Last session:** 2026-01-25
+**Last session:** 2026-01-26
 
-**Stopped at:** Milestone v1.0 archived and tagged
+**Stopped at:** Roadmap and state files created, requirements traceability updated
 
 **Resume file:** None
 
-**Context for next session:**
-- v1.0 milestone complete and archived
-- Start with `/gsd:new-milestone` for v1.1 planning
-- Potential v1.1 features: monitoring, progress tracking, optimization
+**Next step:** Run `/gsd:plan-phase 7` to create execution plan for Conversation Persistence phase
 
 ---
 
 *Last updated: 2026-01-26*
-*v1.1 milestone started*
+*v1.1 milestone roadmap created*

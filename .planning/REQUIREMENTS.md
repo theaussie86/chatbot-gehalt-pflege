@@ -74,33 +74,40 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONV-01 | TBD | Pending |
-| CONV-02 | TBD | Pending |
-| CONV-03 | TBD | Pending |
-| CONV-04 | TBD | Pending |
-| CONV-05 | TBD | Pending |
-| CONV-06 | TBD | Pending |
-| FUNC-01 | TBD | Pending |
-| FUNC-02 | TBD | Pending |
-| FUNC-03 | TBD | Pending |
-| FUNC-04 | TBD | Pending |
-| FUNC-05 | TBD | Pending |
-| CHIP-01 | TBD | Pending |
-| CHIP-02 | TBD | Pending |
-| CHIP-03 | TBD | Pending |
-| CHIP-04 | TBD | Pending |
-| CHIP-05 | TBD | Pending |
-| VALD-01 | TBD | Pending |
-| VALD-02 | TBD | Pending |
-| VALD-03 | TBD | Pending |
-| VALD-04 | TBD | Pending |
-| VALD-05 | TBD | Pending |
+| CONV-01 | Phase 7 | Pending |
+| CONV-02 | Phase 7 | Pending |
+| CONV-03 | Phase 7 | Pending |
+| CONV-04 | Phase 7 | Pending |
+| CONV-05 | Phase 7 | Pending |
+| CONV-06 | Phase 7 | Pending |
+| FUNC-01 | Phase 8 | Pending |
+| FUNC-02 | Phase 8 | Pending |
+| FUNC-03 | Phase 8 | Pending |
+| FUNC-04 | Phase 8 | Pending |
+| FUNC-05 | Phase 8 | Pending |
+| CHIP-01 | Phase 9 | Pending |
+| CHIP-02 | Phase 9 | Pending |
+| CHIP-03 | Phase 9 | Pending |
+| CHIP-04 | Phase 9 | Pending |
+| CHIP-05 | Phase 9 | Pending |
+| VALD-01 | Phase 10 | Pending |
+| VALD-02 | Phase 10 | Pending |
+| VALD-05 | Phase 10 | Pending |
+| VALD-03 | Phase 11 | Pending |
+| VALD-04 | Phase 11 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21 (pending roadmap creation)
+- Mapped to phases: 21 (100%)
+- Unmapped: 0
+
+**Phase coverage:**
+- Phase 7 (Conversation Persistence): 6 requirements (CONV-01 through CONV-06)
+- Phase 8 (Function Calling): 5 requirements (FUNC-01 through FUNC-05)
+- Phase 9 (Suggested Response Chips): 5 requirements (CHIP-01 through CHIP-05)
+- Phase 10 (Validation Improvements): 3 requirements (VALD-01, VALD-02, VALD-05)
+- Phase 11 (Citation Quality): 2 requirements (VALD-03, VALD-04)
 
 ---
 *Requirements defined: 2026-01-26*
-*Last updated: 2026-01-26 after initial definition*
+*Last updated: 2026-01-26 after roadmap creation*
