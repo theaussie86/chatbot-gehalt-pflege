@@ -22,6 +22,7 @@ export interface Message {
   isLoading?: boolean;
   resultData?: SalaryResultData; // Optional, only present if parsing extracted JSON
   options?: string[]; // New: Suggested quick replies
+  showDoiForm?: boolean; // Flag to render DOI email consent form
 }
 
 export interface ChatState {

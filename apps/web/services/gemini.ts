@@ -54,3 +54,55 @@ export const sendMessageToGemini = async (
     };
   }
 };
+
+export const sendEmailExport = async (
+  email: string,
+  inquiryData: {
+    jobDetails: Record<string, any>;
+    taxDetails: Record<string, any>;
+    calculationResult: Record<string, any>;
+  },
+  projectId: string,
+  inquiryId: string | null
+): Promise<{ success: boolean; error?: string }> => {
+  if (!currentConfig) {
+    return { success: false, error: "Chat not initialized with configuration." };
+  }
+
+  try {
+    // Derive email export endpoint from apiEndpoint (replace /api/chat with /api/email-export)
+    const emailEndpoint = currentConfig.apiEndpoint.replace('/api/chat', '/api/email-export');
+
+    const response = await fetch(emailEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        consent: true,
+        inquiryData,
+        projectId,
+        inquiryId
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Email Export Error:", errorData);
+      return {
+        success: false,
+        error: errorData.error || "Fehler beim Senden der E-Mail"
+      };
+    }
+
+    return { success: true };
+
+  } catch (error) {
+    console.error("Email Export Request Error:", error);
+    return {
+      success: false,
+      error: "Netzwerkfehler. Bitte versuche es erneut."
+    };
+  }
+};

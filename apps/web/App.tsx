@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, MessageSquare } from 'lucide-react';
 import { Message, Sender, SalaryResultData, FormState, DEFAULT_FORM_STATE } from './types';
-import { sendMessageToGemini, initializeChat } from './services/gemini';
+import { sendMessageToGemini, initializeChat, sendEmailExport } from './services/gemini';
 import { MessageBubble } from './components/MessageBubble';
 import { StepBar } from './components/StepBar';
 import { ConversationStore } from './services/conversationStore';
@@ -35,6 +35,8 @@ export default function App({ config }: AppProps) {
   const [progress, setProgress] = useState(0);
   const [formState, setFormState] = useState<FormState>(DEFAULT_FORM_STATE);
   const [inquiryId, setInquiryId] = useState<string | null>(null);
+  const [doiLoading, setDoiLoading] = useState(false);
+  const [doiSubmitted, setDoiSubmitted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -178,6 +180,17 @@ export default function App({ config }: AppProps) {
 
       // Save conversation to localStorage (unless completed)
       if (finalFormState.section === 'completed') {
+        // Add DOI consent form message after completion
+        const doiMessage: Message = {
+          id: (Date.now() + 2).toString(),
+          text: 'Möchtest du dein Ergebnis per E-Mail erhalten?',
+          sender: Sender.BOT,
+          timestamp: new Date(),
+          showDoiForm: true
+        };
+        const messagesWithDoi = [...updatedMessages, doiMessage];
+        setMessages(messagesWithDoi);
+
         // Clear storage when conversation completes
         ConversationStore.clear();
       } else {
@@ -222,9 +235,39 @@ export default function App({ config }: AppProps) {
     setProgress(0);
     setInputValue('');
     setInquiryId(null);
+    setDoiLoading(false);
+    setDoiSubmitted(false);
 
     // Focus input
     inputRef.current?.focus();
+  };
+
+  const handleEmailSubmit = async (email: string) => {
+    setDoiLoading(true);
+
+    try {
+      const projectId = config?.projectId || import.meta.env.VITE_PROJECT_ID || '';
+
+      // Prepare inquiry data from formState
+      const inquiryData = {
+        jobDetails: formState.data.job_details || {},
+        taxDetails: formState.data.tax_details || {},
+        calculationResult: formState.data.calculation_result || {}
+      };
+
+      const result = await sendEmailExport(email, inquiryData, projectId, inquiryId);
+
+      if (result.success) {
+        setDoiSubmitted(true);
+      } else {
+        // Error handling is done in DoiConsentForm via error state
+        console.error('Email export failed:', result.error);
+      }
+    } catch (error) {
+      console.error('Email submit error:', error);
+    } finally {
+      setDoiLoading(false);
+    }
   }
 
   if (!config?.projectId) {
@@ -276,10 +319,15 @@ export default function App({ config }: AppProps) {
       {/* Chat Area */}
       <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 scrollbar-hide">
         {messages.map((msg) => (
-          <MessageBubble 
-            key={msg.id} 
-            message={msg} 
+          <MessageBubble
+            key={msg.id}
+            message={msg}
             onOptionSelected={(opt) => handleSendMessage(opt)}
+            doiFormProps={msg.showDoiForm ? {
+              onSubmit: handleEmailSubmit,
+              isLoading: doiLoading,
+              isSubmitted: doiSubmitted
+            } : undefined}
           />
         ))}
         

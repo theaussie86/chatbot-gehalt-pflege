@@ -2,13 +2,19 @@ import React from 'react';
 import { Message, Sender } from '../types';
 import { Bot, User } from 'lucide-react';
 import { SalaryResult } from './SalaryResult';
+import { DoiConsentForm } from './DoiConsentForm';
 
 interface MessageBubbleProps {
   message: Message;
   onOptionSelected?: (option: string) => void;
+  doiFormProps?: {
+    onSubmit: (email: string) => void;
+    isLoading: boolean;
+    isSubmitted: boolean;
+  };
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onOptionSelected }) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onOptionSelected, doiFormProps }) => {
   const isBot = message.sender === Sender.BOT;
 
   return (
@@ -38,7 +44,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onOptionS
             {message.resultData && (
                 <SalaryResult data={message.resultData} />
             )}
-            
+
+            {/* Display DOI consent form if flagged */}
+            {message.showDoiForm && doiFormProps && (
+                <DoiConsentForm {...doiFormProps} />
+            )}
+
             {/* Display Options/Quick Replies */}
             {message.options && message.options.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3 animate-fade-in">
