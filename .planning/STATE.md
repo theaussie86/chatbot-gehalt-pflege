@@ -3,8 +3,8 @@
 **Project:** Gehalt-Pflege Document Pipeline
 **Current Milestone:** v1.1 Chat Intelligence
 **Current Phase:** Phase 7 of 11 (Conversation Persistence)
-**Current Plan:** —
-**Status:** Ready to plan
+**Current Plan:** 1 of 5 (Conversation Persistence)
+**Status:** Completed
 
 ## Project Reference
 
@@ -19,9 +19,9 @@
 **Milestone:** v1.1 Chat Intelligence (Phases 7-11)
 
 Phase: 7 of 11 (Conversation Persistence)
-Plan: 2 of 5 (Admin Inquiry Dashboard)
-Status: In progress
-Last activity: 2026-01-27 — Completed 07-02-PLAN.md
+Plan: 1 of 5 (Conversation Persistence)
+Status: Completed
+Last activity: 2026-01-27 — Completed 07-01-PLAN.md
 
 Progress: [████████████░░░░░░░░] 60% (15/25 plans across all milestones)
 
@@ -65,11 +65,17 @@ Full decision log in PROJECT.md Key Decisions table.
 - 0.75 similarity threshold for RAG quality
 
 **v1.1 architectural decisions (from research):**
-- Dexie.js 4.0.11+ for client-side conversation storage (not React Query for IndexedDB)
 - Zod v4.3.5 upgrade for native Gemini structured output
 - Dual-write pattern: localStorage (client) + Supabase (admin sync)
 - State versioning with stateVersion field for migration safety
 - Sliding window history (last 5 messages) + summarization for context window management
+
+**Phase 7 (07-01) decisions:**
+- localStorage over Dexie.js for conversation persistence (simpler for <100 messages)
+- Duplicate FormState interface in widget types (build independence)
+- Initialize formState to DEFAULT_FORM_STATE (not null) to activate state machine
+- Clear localStorage when section reaches 'completed'
+- "Neues Gespräch" text button for better discoverability
 
 **Phase 7 (07-02) decisions:**
 - Server action pattern for admin data fetching (consistent with documents.ts)
@@ -116,17 +122,17 @@ Phase 11 must address:
 
 ## Session Continuity
 
-**Last command:** Plan 07-02 execution completed
+**Last command:** Plan 07-01 execution completed
 
 **Last session:** 2026-01-27
 
-**Stopped at:** Completed 07-02-PLAN.md (Admin Inquiry Dashboard)
+**Stopped at:** Completed 07-01-PLAN.md (Conversation Persistence)
 
 **Resume file:** None
 
-**Next step:** Execute Plan 07-03 (Email capture with DOI consent) or continue with remaining Phase 7 plans
+**Next step:** Continue with Plan 07-02 or remaining Phase 7 plans
 
 ---
 
 *Last updated: 2026-01-27*
-*Plan 07-02 completed: Admin Inquiry Dashboard*
+*Plan 07-01 completed: localStorage conversation persistence with 4-step StepBar*
