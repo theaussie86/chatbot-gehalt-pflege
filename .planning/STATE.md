@@ -19,11 +19,11 @@
 **Milestone:** v1.1 Chat Intelligence (Phases 7-11)
 
 Phase: 7 of 11 (Conversation Persistence)
-Plan: — (phase planning not started)
-Status: Ready to plan
-Last activity: 2026-01-26 — Roadmap created for v1.1 milestone
+Plan: 2 of 5 (Admin Inquiry Dashboard)
+Status: In progress
+Last activity: 2026-01-27 — Completed 07-02-PLAN.md
 
-Progress: [████████████░░░░░░░░] 57% (14/24+ plans across all milestones)
+Progress: [████████████░░░░░░░░] 60% (15/25 plans across all milestones)
 
 ## Performance Metrics
 
@@ -46,8 +46,8 @@ Progress: [████████████░░░░░░░░] 57% (14
 
 **v1.1 Progress:**
 - Phases planned: 5 (Phases 7-11)
-- Plans created: 0
-- Plans completed: 0
+- Plans created: 5 (Phase 7)
+- Plans completed: 2 (07-01, 07-02)
 
 *Updated after each plan completion*
 
@@ -71,9 +71,17 @@ Full decision log in PROJECT.md Key Decisions table.
 - State versioning with stateVersion field for migration safety
 - Sliding window history (last 5 messages) + summarization for context window management
 
+**Phase 7 (07-02) decisions:**
+- Server action pattern for admin data fetching (consistent with documents.ts)
+- Manual refresh for inquiry dashboard (no realtime subscriptions needed)
+- Expandable table rows for detail views (better UX than modals)
+
 ### Pending Todos
 
-None yet for v1.1.
+**Phase 7 (07-02):**
+- User must apply DB changes (see 07-USER-SETUP.md):
+  - Add email column to salary_inquiries table
+  - Add RLS policy for authenticated read access
 
 ### Blockers/Concerns
 
@@ -108,17 +116,17 @@ Phase 11 must address:
 
 ## Session Continuity
 
-**Last command:** Roadmap creation for v1.1
+**Last command:** Plan 07-02 execution completed
 
-**Last session:** 2026-01-26
+**Last session:** 2026-01-27
 
-**Stopped at:** Roadmap and state files created, requirements traceability updated
+**Stopped at:** Completed 07-02-PLAN.md (Admin Inquiry Dashboard)
 
 **Resume file:** None
 
-**Next step:** Run `/gsd:plan-phase 7` to create execution plan for Conversation Persistence phase
+**Next step:** Execute Plan 07-03 (Email capture with DOI consent) or continue with remaining Phase 7 plans
 
 ---
 
-*Last updated: 2026-01-26*
-*v1.1 milestone roadmap created*
+*Last updated: 2026-01-27*
+*Plan 07-02 completed: Admin Inquiry Dashboard*
