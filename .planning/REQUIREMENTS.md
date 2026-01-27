@@ -9,12 +9,12 @@ Requirements for Chat Intelligence milestone. Each maps to roadmap phases.
 
 ### Conversation Persistence
 
-- [ ] **CONV-01**: User conversation persists in browser storage across page refreshes
-- [ ] **CONV-02**: User can resume previous conversation session automatically
-- [ ] **CONV-03**: Admin can view structured salary inquiry data (job details, tax details, calculated result)
-- [ ] **CONV-04**: Admin can see user email associated with salary inquiry
-- [ ] **CONV-05**: User sees visual progress of collected data during conversation
-- [ ] **CONV-06**: User can export conversation/result to email
+- [x] **CONV-01**: User conversation persists in browser storage across page refreshes
+- [x] **CONV-02**: User can resume previous conversation session automatically
+- [x] **CONV-03**: Admin can view structured salary inquiry data (job details, tax details, calculated result)
+- [x] **CONV-04**: Admin can see user email associated with salary inquiry
+- [x] **CONV-05**: User sees visual progress of collected data during conversation
+- [x] **CONV-06**: User can export conversation/result to email
 
 ### Function Calling
 
@@ -74,12 +74,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONV-01 | Phase 7 | Pending |
-| CONV-02 | Phase 7 | Pending |
-| CONV-03 | Phase 7 | Pending |
-| CONV-04 | Phase 7 | Pending |
-| CONV-05 | Phase 7 | Pending |
-| CONV-06 | Phase 7 | Pending |
+| CONV-01 | Phase 7 | Complete |
+| CONV-02 | Phase 7 | Complete |
+| CONV-03 | Phase 7 | Complete |
+| CONV-04 | Phase 7 | Complete |
+| CONV-05 | Phase 7 | Complete |
+| CONV-06 | Phase 7 | Complete |
 | FUNC-01 | Phase 8 | Pending |
 | FUNC-02 | Phase 8 | Pending |
 | FUNC-03 | Phase 8 | Pending |
