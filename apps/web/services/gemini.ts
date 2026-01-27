@@ -1,4 +1,4 @@
-import { Message, Sender } from "../types";
+import { Message, Sender, FormState } from "../types";
 
 interface ChatConfig {
   projectId: string;
@@ -13,8 +13,9 @@ export const initializeChat = (config: ChatConfig) => {
 
 export const sendMessageToGemini = async (
   userMessage: string,
-  history: Message[]
-): Promise<string> => {
+  history: Message[],
+  currentFormState?: FormState
+): Promise<{ text: string; formState?: FormState }> => {
   if (!currentConfig) {
     throw new Error("Chat not initialized with configuration.");
   }
@@ -29,6 +30,7 @@ export const sendMessageToGemini = async (
         message: userMessage,
         history: history, // Send full history including previous messages
         projectId: currentConfig.projectId, // Sent as projectId for clarity
+        currentFormState: currentFormState, // Send current form state for state machine
       }),
     });
 
@@ -39,10 +41,15 @@ export const sendMessageToGemini = async (
     }
 
     const data = await response.json();
-    return data.text || "";
+    return {
+      text: data.text || "",
+      formState: data.formState
+    };
 
   } catch (error) {
     console.error("API Request Error:", error);
-    return '[PROGRESS: 0] Entschuldigung, es gab einen Fehler bei der Verbindung. Bitte prüfen Sie Ihre Internetverbindung oder API-Konfiguration. [OPTIONS: ["Erneut versuchen"]]';
+    return {
+      text: '[PROGRESS: 0] Entschuldigung, es gab einen Fehler bei der Verbindung. Bitte prüfen Sie Ihre Internetverbindung oder API-Konfiguration. [OPTIONS: ["Erneut versuchen"]]'
+    };
   }
 };

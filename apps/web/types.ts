@@ -29,3 +29,27 @@ export interface ChatState {
   progress: number;
   isLoading: boolean;
 }
+
+// FormState type (duplicated from API app for widget independence)
+export interface FormState {
+  section: 'job_details' | 'tax_details' | 'summary' | 'completed';
+  data: {
+    job_details?: Record<string, any>;
+    tax_details?: Record<string, any>;
+    calculation_result?: Record<string, any>;
+  };
+  missingFields: string[];
+  conversationContext?: string[];
+  userIntent?: string;
+  validationErrors?: Record<string, string>;
+}
+
+// Default initial formState that the state machine expects
+export const DEFAULT_FORM_STATE: FormState = {
+  section: 'job_details',
+  data: {
+    job_details: {},
+    tax_details: {},
+  },
+  missingFields: ['tarif', 'group', 'experience', 'hours', 'state'],
+};

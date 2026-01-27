@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, RefreshCw, MessageSquare } from 'lucide-react';
-import { Message, Sender, SalaryResultData } from './types';
+import { Send, MessageSquare } from 'lucide-react';
+import { Message, Sender, SalaryResultData, FormState, DEFAULT_FORM_STATE } from './types';
 import { sendMessageToGemini, initializeChat } from './services/gemini';
 import { MessageBubble } from './components/MessageBubble';
 import { ProgressBar } from './components/ProgressBar';
+import { ConversationStore } from './services/conversationStore';
 
 const INITIAL_MESSAGE_TEXT = "Hallo! Ich bin dein Assistent für den TVöD-Pflege Gehaltsrechner. Ich helfe dir, dein Gehalt im Pflegebereich zu schätzen. \n\nFür welches Jahr möchtest du eine Berechnung durchführen?";
 const currentYear = new Date().getFullYear();
@@ -32,6 +33,7 @@ export default function App({ config }: AppProps) {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [formState, setFormState] = useState<FormState>(DEFAULT_FORM_STATE);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -60,13 +62,21 @@ export default function App({ config }: AppProps) {
   // Initial focus and config
   useEffect(() => {
     // Start the chat session with config
-    // Note: We use 'projectId' (Public Key) here. 
+    // Note: We use 'projectId' (Public Key) here.
     // Secure 'Gemini API Key' is NEVER passed here.
-    const projectId = config?.projectId || import.meta.env.VITE_PROJECT_ID || ''; 
+    const projectId = config?.projectId || import.meta.env.VITE_PROJECT_ID || '';
     const apiEndpoint = config?.apiEndpoint || import.meta.env.VITE_API_ENDPOINT || 'http://localhost:3000/api/chat';
 
     initializeChat({ projectId, apiEndpoint });
     inputRef.current?.focus();
+
+    // Load saved conversation if exists (auto-resume)
+    const savedConversation = ConversationStore.load();
+    if (savedConversation) {
+      setMessages(savedConversation.messages);
+      setFormState(savedConversation.formState);
+      setProgress(savedConversation.progress);
+    }
   }, [config]);
 
   const parseResponse = (text: string): { cleanText: string; newProgress: number | null; resultData: SalaryResultData | null, options: string[] | undefined } => {
@@ -111,7 +121,7 @@ export default function App({ config }: AppProps) {
 
   const handleSendMessage = async (textOverride?: string) => {
     const textToSend = textOverride || inputValue;
-    
+
     if (!textToSend.trim() || isLoading) return;
 
     setInputValue('');
@@ -125,16 +135,28 @@ export default function App({ config }: AppProps) {
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, newUserMsg]);
+    const updatedMessagesWithUser = [...messages, newUserMsg];
+    setMessages(updatedMessagesWithUser);
 
     try {
-      // Get AI response
-      const rawResponse = await sendMessageToGemini(textToSend, messages);
-      
-      const { cleanText, newProgress, resultData, options } = parseResponse(rawResponse);
+      // Get AI response with current form state
+      const { text: rawText, formState: newFormState } = await sendMessageToGemini(
+        textToSend,
+        messages,
+        formState
+      );
+
+      const { cleanText, newProgress, resultData, options } = parseResponse(rawText);
+
+      const finalProgress = newProgress !== null ? newProgress : progress;
+      const finalFormState = newFormState || formState;
 
       if (newProgress !== null) {
         setProgress(newProgress);
+      }
+
+      if (newFormState) {
+        setFormState(newFormState);
       }
 
       const newBotMsg: Message = {
@@ -146,7 +168,22 @@ export default function App({ config }: AppProps) {
         options: options
       };
 
-      setMessages((prev) => [...prev, newBotMsg]);
+      const updatedMessages = [...updatedMessagesWithUser, newBotMsg];
+      setMessages(updatedMessages);
+
+      // Save conversation to localStorage (unless completed)
+      if (finalFormState.section === 'completed') {
+        // Clear storage when conversation completes
+        ConversationStore.clear();
+      } else {
+        // Save conversation for auto-resume
+        ConversationStore.save({
+          messages: updatedMessages,
+          formState: finalFormState,
+          progress: finalProgress,
+          updatedAt: new Date().toISOString()
+        });
+      }
 
     } catch (error) {
       console.error("Error sending message", error);
@@ -163,9 +200,25 @@ export default function App({ config }: AppProps) {
   };
 
   const handleReset = () => {
-    if(window.confirm("Möchtest du den Chat neu starten? Alle Eingaben gehen verloren.")) {
-        window.location.reload();
-    }
+    // Clear conversation from localStorage
+    ConversationStore.clear();
+
+    // Reset all state to initial values
+    setMessages([
+      {
+        id: 'init-1',
+        text: INITIAL_MESSAGE_TEXT,
+        sender: Sender.BOT,
+        timestamp: new Date(),
+        options: INITIAL_OPTIONS
+      }
+    ]);
+    setFormState(DEFAULT_FORM_STATE);
+    setProgress(0);
+    setInputValue('');
+
+    // Focus input
+    inputRef.current?.focus();
   }
 
   if (!config?.projectId) {
@@ -199,12 +252,13 @@ export default function App({ config }: AppProps) {
                 <p className="text-xs text-slate-500">Dein Assistent für den öffentlichen Dienst</p>
             </div>
         </div>
-        <button 
+        <button
             onClick={handleReset}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
-            title="Neu starten"
+            className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 hover:border-slate-300 flex items-center gap-1.5"
+            title="Neues Gespräch starten"
         >
-            <RefreshCw size={20} />
+            <MessageSquare size={16} />
+            <span>Neues Gespräch</span>
         </button>
       </header>
 
