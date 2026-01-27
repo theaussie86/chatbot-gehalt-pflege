@@ -372,7 +372,9 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                                 job_details: jobData,
                                 tax_details: taxData
                             }
-                        });
+                        })
+                        .select('id')
+                        .single();
 
                     if (saveResult.error) {
                         console.error('[StateMachine] Failed to save calculation:', saveResult.error);
@@ -391,7 +393,8 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
 
                     return NextResponse.json({
                         text: formattedResult + '\n\n[PROGRESS: 100]',
-                        formState: nextFormState
+                        formState: nextFormState,
+                        inquiryId: saveResult.data?.id || null
                     });
 
                 } catch (calcError) {

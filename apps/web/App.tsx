@@ -34,6 +34,7 @@ export default function App({ config }: AppProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [formState, setFormState] = useState<FormState>(DEFAULT_FORM_STATE);
+  const [inquiryId, setInquiryId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -140,7 +141,7 @@ export default function App({ config }: AppProps) {
 
     try {
       // Get AI response with current form state
-      const { text: rawText, formState: newFormState } = await sendMessageToGemini(
+      const { text: rawText, formState: newFormState, inquiryId: newInquiryId } = await sendMessageToGemini(
         textToSend,
         messages,
         formState
@@ -157,6 +158,10 @@ export default function App({ config }: AppProps) {
 
       if (newFormState) {
         setFormState(newFormState);
+      }
+
+      if (newInquiryId) {
+        setInquiryId(newInquiryId);
       }
 
       const newBotMsg: Message = {
@@ -216,6 +221,7 @@ export default function App({ config }: AppProps) {
     setFormState(DEFAULT_FORM_STATE);
     setProgress(0);
     setInputValue('');
+    setInquiryId(null);
 
     // Focus input
     inputRef.current?.focus();

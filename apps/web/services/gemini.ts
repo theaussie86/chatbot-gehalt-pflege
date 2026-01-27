@@ -15,7 +15,7 @@ export const sendMessageToGemini = async (
   userMessage: string,
   history: Message[],
   currentFormState?: FormState
-): Promise<{ text: string; formState?: FormState }> => {
+): Promise<{ text: string; formState?: FormState; inquiryId?: string }> => {
   if (!currentConfig) {
     throw new Error("Chat not initialized with configuration.");
   }
@@ -43,7 +43,8 @@ export const sendMessageToGemini = async (
     const data = await response.json();
     return {
       text: data.text || "",
-      formState: data.formState
+      formState: data.formState,
+      inquiryId: data.inquiryId
     };
 
   } catch (error) {
