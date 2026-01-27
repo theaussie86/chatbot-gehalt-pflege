@@ -19,11 +19,11 @@
 **Milestone:** v1.1 Chat Intelligence (Phases 7-11)
 
 Phase: 7 of 11 (Conversation Persistence)
-Plan: 1 of 5 (Conversation Persistence)
-Status: Completed
-Last activity: 2026-01-27 — Completed 07-01-PLAN.md
+Plan: 3 of 3 complete
+Status: Phase complete ✅
+Last activity: 2026-01-27 — Completed 07-03-PLAN.md (Email Export with DOI Consent)
 
-Progress: [████████████░░░░░░░░] 60% (15/25 plans across all milestones)
+Progress: [█████████████░░░░░░░] 68% (17/25 plans across all milestones)
 
 ## Performance Metrics
 
@@ -46,8 +46,9 @@ Progress: [████████████░░░░░░░░] 60% (15
 
 **v1.1 Progress:**
 - Phases planned: 5 (Phases 7-11)
-- Plans created: 5 (Phase 7)
-- Plans completed: 2 (07-01, 07-02)
+- Plans created: 3 (Phase 7)
+- Plans completed: 3 (07-01, 07-02, 07-03)
+- Phase 7 complete ✅
 
 *Updated after each plan completion*
 
@@ -82,12 +83,21 @@ Full decision log in PROJECT.md Key Decisions table.
 - Manual refresh for inquiry dashboard (no realtime subscriptions needed)
 - Expandable table rows for detail views (better UX than modals)
 
+**Phase 7 (07-03) decisions:**
+- Inquiry ID flow: chat API returns ID on insert, widget stores in state, passes to email export
+- Resend for email sending (simple API, generous free tier)
+- Inline DOI form in chat (not modal or popup)
+- Email export rate limit: 5 per IP per 60 seconds (stricter than chat)
+- Graceful degradation if inquiryId is null (email delivery is primary purpose)
+
 ### Pending Todos
 
-**Phase 7 (07-02):**
-- User must apply DB changes (see 07-USER-SETUP.md):
-  - Add email column to salary_inquiries table
-  - Add RLS policy for authenticated read access
+**Phase 7 (Plans 07-02 & 07-03):**
+- User must apply setup tasks (see 07-USER-SETUP.md):
+  - Add email column to salary_inquiries table (Plan 07-02)
+  - Add RLS policy for authenticated read access (Plan 07-02)
+  - Create Resend account and API key (Plan 07-03)
+  - Configure sender domain for production (Plan 07-03, optional)
 
 ### Blockers/Concerns
 
@@ -122,17 +132,17 @@ Phase 11 must address:
 
 ## Session Continuity
 
-**Last command:** Plan 07-01 execution completed
+**Last command:** Plan 07-03 execution completed
 
 **Last session:** 2026-01-27
 
-**Stopped at:** Completed 07-01-PLAN.md (Conversation Persistence)
+**Stopped at:** Completed 07-03-PLAN.md (Email Export with DOI Consent)
 
 **Resume file:** None
 
-**Next step:** Continue with Plan 07-02 or remaining Phase 7 plans
+**Next step:** Phase 7 complete. Begin Phase 8 planning or continue with remaining milestone phases.
 
 ---
 
 *Last updated: 2026-01-27*
-*Plan 07-01 completed: localStorage conversation persistence with 4-step StepBar*
+*Phase 7 complete: Conversation persistence with localStorage, admin dashboard, email export with DOI consent*
