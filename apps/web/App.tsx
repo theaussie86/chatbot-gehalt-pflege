@@ -3,7 +3,7 @@ import { Send, MessageSquare } from 'lucide-react';
 import { Message, Sender, SalaryResultData, FormState, DEFAULT_FORM_STATE } from './types';
 import { sendMessageToGemini, initializeChat } from './services/gemini';
 import { MessageBubble } from './components/MessageBubble';
-import { ProgressBar } from './components/ProgressBar';
+import { StepBar } from './components/StepBar';
 import { ConversationStore } from './services/conversationStore';
 
 const INITIAL_MESSAGE_TEXT = "Hallo! Ich bin dein Assistent für den TVöD-Pflege Gehaltsrechner. Ich helfe dir, dein Gehalt im Pflegebereich zu schätzen. \n\nFür welches Jahr möchtest du eine Berechnung durchführen?";
@@ -262,13 +262,9 @@ export default function App({ config }: AppProps) {
         </button>
       </header>
 
-      {/* Progress Bar Area */}
-      <div className="bg-white px-6 pt-4 pb-1 border-b border-slate-100">
-        <div className="flex justify-between text-xs font-medium text-slate-500 mb-1">
-            <span>Fortschritt</span>
-            <span>{progress}%</span>
-        </div>
-        <ProgressBar progress={progress} />
+      {/* Step Progress Bar */}
+      <div className="bg-white px-6 border-b border-slate-100">
+        <StepBar currentSection={formState.section} />
       </div>
 
       {/* Chat Area */}
