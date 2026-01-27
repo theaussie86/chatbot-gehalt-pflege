@@ -81,11 +81,12 @@ Plans:
   4. Admin sees user email associated with each salary inquiry
   5. User sees visual progress indicator showing collected fields during conversation
   6. User exports conversation/result to email and receives formatted summary
-**Plans:** TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 07-01: TBD
-- [ ] 07-02: TBD
+- [ ] 07-01-PLAN.md -- Client-side conversation persistence and step progress indicator
+- [ ] 07-02-PLAN.md -- Admin inquiry dashboard with structured data and filters
+- [ ] 07-03-PLAN.md -- Email export with DOI consent and formatted result email
 
 ### Phase 8: Function Calling Enhancement
 **Goal:** AI reliably executes tax calculations and tariff lookups via structured tool calls
@@ -124,7 +125,7 @@ Plans:
 **Depends on:** Phase 8 (Function Calling Enhancement - validation applies to tool parameters)
 **Requirements:** VALD-01, VALD-02, VALD-05
 **Success Criteria** (what must be TRUE):
-  1. Data extraction uses two-phase validation (LLM extracts → Zod schema validates before accepting)
+  1. Data extraction uses two-phase validation (LLM extracts -> Zod schema validates before accepting)
   2. Validation errors display user-friendly German messages (e.g., "Steuerklasse muss zwischen 1 und 6 liegen")
   3. When validation fails, AI re-prompts user with specific correction request referencing the error
 **Plans:** TBD
@@ -137,8 +138,8 @@ Plans:
 **Depends on:** Phase 6 (RAG Integration - enhances existing citations)
 **Requirements:** VALD-03, VALD-04
 **Success Criteria** (what must be TRUE):
-  1. RAG citations include document name in response (e.g., "[TVöD_2025.pdf]")
-  2. RAG citations include page number when available (e.g., "[TVöD_2025.pdf, S. 12]")
+  1. RAG citations include document name in response (e.g., "[TVoD_2025.pdf]")
+  2. RAG citations include page number when available (e.g., "[TVoD_2025.pdf, S. 12]")
 **Plans:** TBD
 
 Plans:
@@ -147,7 +148,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 7 → 8 → 9 → 10 → 11
+Phases execute in numeric order: 7 -> 8 -> 9 -> 10 -> 11
 
 **Parallelization opportunities:**
 - Phase 7 and Phase 8 can run in parallel (independent components)
@@ -162,7 +163,7 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11
 | 4. Durable Document Processing | v1.0 | 4/4 | Complete | 2026-01-25 |
 | 5. Error Recovery | v1.0 | 1/1 | Complete | 2026-01-25 |
 | 6. RAG Integration | v1.0 | 2/2 | Complete | 2026-01-25 |
-| 7. Conversation Persistence | v1.1 | 0/TBD | Not started | - |
+| 7. Conversation Persistence | v1.1 | 0/3 | In Progress | - |
 | 8. Function Calling Enhancement | v1.1 | 0/TBD | Not started | - |
 | 9. Suggested Response Chips | v1.1 | 0/TBD | Not started | - |
 | 10. Validation Improvements | v1.1 | 0/TBD | Not started | - |
@@ -171,4 +172,4 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11
 ---
 
 *Roadmap created: 2026-01-26*
-*Last updated: 2026-01-26*
+*Last updated: 2026-01-27*
