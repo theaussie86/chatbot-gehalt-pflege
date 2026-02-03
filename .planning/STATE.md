@@ -18,12 +18,12 @@
 
 **Milestone:** v1.1 Chat Intelligence (Phases 7-11)
 
-Phase: 10 of 11 (Validation Improvements) — IN PROGRESS
-Plan: 01 of 02 — COMPLETE ✅
-Status: In progress
-Last activity: 2026-02-03 — Completed 10-01-PLAN.md (Form Field Schemas & Validation Service)
+Phase: 10 of 11 (Validation Improvements) — COMPLETE ✅
+Plan: 02 of 02 — COMPLETE ✅
+Status: Phase complete
+Last activity: 2026-02-03 — Completed 10-02-PLAN.md (Tool Extraction Integration)
 
-Progress: [█████████████████░░░] 88% (22/25 plans across all milestones)
+Progress: [██████████████████░░] 92% (23/25 plans across all milestones)
 
 ## Performance Metrics
 
@@ -50,7 +50,7 @@ Progress: [█████████████████░░░] 88% (22
 - Phase 7 complete ✅ (3/3 plans)
 - Phase 8 complete ✅ (2/2 plans)
 - Phase 9 complete ✅ (2/2 plans)
-- Phase 10 in progress (1/2 plans complete)
+- Phase 10 complete ✅ (2/2 plans)
 - Phase 11: Not started
 
 *Updated after each plan completion*
@@ -119,6 +119,9 @@ Full decision log in PROJECT.md Key Decisions table.
 - German number word pre-processing (eins, zwei, drei → 1, 2, 3) for natural language input
 - 30-min TTL for retry context (fresh start when user returns after inactivity)
 - Cross-field group validation requires tarif context for P/E prefix (P5-P15 for Pflege, E5-E15 for general)
+- Field-specific German labels for escalation chips (e.g., "Klasse 1 (ledig)" not just "1")
+- Use activeProjectId for validation session tracking with 30-min TTL
+- Re-prompt only for first validation error when multiple fields fail (avoid overwhelming user)
 
 ### Pending Todos
 
@@ -140,8 +143,8 @@ Phase 9 addressed:
 - ✅ P1-1: Suggested response overload (max 4 chips, skip for freeform fields)
 - ✅ P1-5: Separate LLM call for suggestions (AI generation with timeout, hybrid approach)
 
-Phase 10 must address:
-- P1-3: Data extraction relies solely on LLM (two-phase validation)
+Phase 10 addressed:
+- ✅ P1-3: Data extraction relies solely on LLM (two-phase validation with FieldValidator)
 
 Phase 11 must address:
 - P0-3: RAG citation hallucination (store page metadata, don't generate)
@@ -160,13 +163,13 @@ Phase 11 must address:
 
 **Last session:** 2026-02-03
 
-**Stopped at:** Phase 10 Plan 01 complete ✅ (2/2 tasks, 3min execution). Zod schemas and FieldValidator service created.
+**Stopped at:** Phase 10 complete ✅ (2/2 plans, 6min total). Two-phase validation integrated into chat flow with escalation chips.
 
 **Resume file:** None
 
-**Next step:** Execute Phase 10 Plan 02 (Tool Extraction Integration) or verify Phase 10 completion
+**Next step:** Execute Phase 11 (Citation Quality Enhancement) - RAG citation hallucination prevention
 
 ---
 
 *Last updated: 2026-02-03*
-*Phase 10-01 complete: Zod form field schemas with German pre-processors, FieldValidator service with retry tracking*
+*Phase 10 complete: Two-phase validation with FieldValidator, German error re-prompts, escalation chips after 3 failures*
