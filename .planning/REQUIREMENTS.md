@@ -18,11 +18,11 @@ Requirements for Chat Intelligence milestone. Each maps to roadmap phases.
 
 ### Function Calling
 
-- [ ] **FUNC-01**: AI calls tax calculation tool with structured parameters (gross salary, tax class, church tax, children)
-- [ ] **FUNC-02**: AI calls tariff lookup tool to retrieve salary grades (TVöD, TV-L, AVR by Stufe/experience)
-- [ ] **FUNC-03**: Validation errors from tools are returned to AI for retry with corrected parameters
-- [ ] **FUNC-04**: AI can execute multiple tools in a single turn when needed
-- [ ] **FUNC-05**: Tool results inform suggested response generation
+- [x] **FUNC-01**: AI calls tax calculation tool with structured parameters (gross salary, tax class, church tax, children)
+- [x] **FUNC-02**: AI calls tariff lookup tool to retrieve salary grades (TVöD, TV-L, AVR by Stufe/experience)
+- [x] **FUNC-03**: Validation errors from tools are returned to AI for retry with corrected parameters
+- [x] **FUNC-04**: AI can execute multiple tools in a single turn when needed
+- [x] **FUNC-05**: Tool results inform suggested response generation
 
 ### Suggested Responses
 
@@ -80,11 +80,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONV-04 | Phase 7 | Complete |
 | CONV-05 | Phase 7 | Complete |
 | CONV-06 | Phase 7 | Complete |
-| FUNC-01 | Phase 8 | Pending |
-| FUNC-02 | Phase 8 | Pending |
-| FUNC-03 | Phase 8 | Pending |
-| FUNC-04 | Phase 8 | Pending |
-| FUNC-05 | Phase 8 | Pending |
+| FUNC-01 | Phase 8 | Complete |
+| FUNC-02 | Phase 8 | Complete |
+| FUNC-03 | Phase 8 | Complete |
+| FUNC-04 | Phase 8 | Complete |
+| FUNC-05 | Phase 8 | Complete |
 | CHIP-01 | Phase 9 | Pending |
 | CHIP-02 | Phase 9 | Pending |
 | CHIP-03 | Phase 9 | Pending |

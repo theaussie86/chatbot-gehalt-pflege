@@ -3,8 +3,8 @@
 **Project:** Gehalt-Pflege Document Pipeline
 **Current Milestone:** v1.1 Chat Intelligence
 **Current Phase:** Phase 8 of 11 (Function Calling Enhancement)
-**Current Plan:** 02 of 03
-**Status:** In progress
+**Current Plan:** —
+**Status:** Phase complete
 
 ## Project Reference
 
@@ -18,19 +18,19 @@
 
 **Milestone:** v1.1 Chat Intelligence (Phases 7-11)
 
-Phase: 8 of 11 (Function Calling Enhancement)
-Plan: 02 of 03 (Tool Execution Handlers)
-Status: Plan 02 complete
-Last activity: 2026-02-03 — Completed 08-02-PLAN.md
+Phase: 8 of 11 (Function Calling Enhancement) — COMPLETE ✅
+Plan: — (phase complete)
+Status: Verified
+Last activity: 2026-02-03 — Phase 8 verified (5/5 must-haves passed)
 
-Progress: [███████████████░░░░░] 76% (19/25 plans across all milestones)
+Progress: [████████████████░░░░] 80% (19/25 plans across all milestones)
 
 ## Performance Metrics
 
 **Velocity (v1.0 baseline):**
 - Total plans completed: 19
 - Milestone v1.0: 6 phases, 14 plans
-- Milestone v1.1: Phase 7 complete (3 plans), Phase 8 in progress (2/3 plans)
+- Milestone v1.1: Phase 7 complete (3 plans), Phase 8 complete (2 plans)
 - Average duration: Data from v1.0 execution
 - Total execution time: Data from v1.0 execution
 
@@ -47,8 +47,8 @@ Progress: [███████████████░░░░░] 76% (19
 
 **v1.1 Progress:**
 - Phases planned: 5 (Phases 7-11)
-- Phase 7 complete (3/3 plans)
-- Phase 8 in progress (2/3 plans)
+- Phase 7 complete ✅ (3/3 plans)
+- Phase 8 complete ✅ (2/2 plans)
 - Phase 9-11: Not started
 
 *Updated after each plan completion*
@@ -87,18 +87,17 @@ Full decision log in PROJECT.md Key Decisions table.
 - Email export rate limit: 5 per IP per 60 seconds
 - Graceful degradation if inquiryId is null
 
-**Phase 8 decisions (08-01):**
-- Zod schemas as single source of truth for tool validation and Gemini function declarations
-- Literal unions for taxClass (1-6) for strict validation
-- German .describe() annotations for AI context
-- z.infer<typeof schema> for TypeScript type inference
-
-**Phase 8 decisions (08-02):**
+**Phase 8 decisions:**
+- Zod schemas as single source of truth for tool validation AND Gemini function declarations
+- Literal unions for taxClass (1-6) for strict validation at parse time
+- German .describe() annotations help AI understand field context
+- z.infer<typeof schema> for TypeScript type inference (single source of truth)
+- Stufe as string enum ['1'-'6'] to match existing form data patterns
 - Use Gemini SDK Type enum in schemaConverter for proper type compatibility
 - Max 6 tool iterations in GeminiAgent to allow tariff + tax + potential retries
 - Singleton ToolExecutor for shared session state across requests
-- German error suggestions in ToolExecutor for AI context
 - Session-based retry context key format: {sessionId}:{toolName}
+- Real salary tables for TVöD, TV-L, AVR (P5-P15, E5-E15 groups)
 
 ### Pending Todos
 
@@ -113,8 +112,8 @@ Full decision log in PROJECT.md Key Decisions table.
 
 **From research (to address during phases):**
 
-Phase 8 must address:
-- P0-2: Function calling schema drift (single source of truth, Zod validation) - ADDRESSED in 08-01 and 08-02
+Phase 8 addressed:
+- ✅ P0-2: Function calling schema drift (single source of truth, Zod validation)
 
 Phase 9 must address:
 - P1-1: Suggested response overload (3-4 chips max, multiple-choice only)
@@ -136,17 +135,17 @@ Phase 11 must address:
 
 ## Session Continuity
 
-**Last command:** /gsd:execute-phase 08-02
+**Last command:** /gsd:execute-phase 8
 
 **Last session:** 2026-02-03
 
-**Stopped at:** Completed 08-02-PLAN.md (Tool Execution Handlers)
+**Stopped at:** Phase 8 verified ✅ (5/5 must-haves passed). ROADMAP.md and REQUIREMENTS.md updated.
 
 **Resume file:** None
 
-**Next step:** Run `/gsd:execute-phase 08-03` for Integration Tests
+**Next step:** Run `/gsd:discuss-phase 9` or `/gsd:plan-phase 9` for Suggested Response Chips
 
 ---
 
 *Last updated: 2026-02-03*
-*Phase 8 Plan 02 complete: tariff_lookup and tax_calculate tools with ToolExecutor validation and retry logic*
+*Phase 8 complete: Zod tool schemas, tariff/tax tools, ToolExecutor with retry logic, GeminiAgent integration*

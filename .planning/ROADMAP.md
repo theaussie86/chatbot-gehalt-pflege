@@ -88,21 +88,21 @@ Plans:
 - [x] 07-02-PLAN.md -- Admin inquiry dashboard with structured data and filters
 - [x] 07-03-PLAN.md -- Email export with DOI consent and formatted result email
 
-### Phase 8: Function Calling Enhancement
+### Phase 8: Function Calling Enhancement ✅
 **Goal:** AI reliably executes tax calculations and tariff lookups via structured tool calls
 **Depends on:** Phase 6 (RAG Integration)
 **Requirements:** FUNC-01, FUNC-02, FUNC-03, FUNC-04, FUNC-05
 **Success Criteria** (what must be TRUE):
-  1. AI calls tax calculation tool with validated parameters (gross salary, tax class, church tax, children)
-  2. AI calls tariff lookup tool and retrieves accurate salary grades for TVöD, TV-L, AVR by experience level
-  3. When tool validation fails, AI receives error message and retries with corrected parameters (max 3 attempts)
-  4. AI executes multiple tools in single turn when appropriate (e.g., tariff lookup then tax calculation)
-  5. Tool execution results inform AI's suggested response generation
-**Plans:** 2 plans
+  1. ✅ AI calls tax calculation tool with validated parameters (gross salary, tax class, church tax, children)
+  2. ✅ AI calls tariff lookup tool and retrieves accurate salary grades for TVöD, TV-L, AVR by experience level
+  3. ✅ When tool validation fails, AI receives error message and retries with corrected parameters (max 3 attempts)
+  4. ✅ AI executes multiple tools in single turn when appropriate (e.g., tariff lookup then tax calculation)
+  5. ✅ Tool execution results inform AI's suggested response generation
+**Plans:** 2 plans complete
 
 Plans:
-- [ ] 08-01-PLAN.md -- Zod tool schema foundation (single source of truth for validation and Gemini tools)
-- [ ] 08-02-PLAN.md -- Tool implementation with tariff lookup, tax calculation, and retry orchestration
+- [x] 08-01-PLAN.md -- Zod tool schema foundation (single source of truth for validation and Gemini tools)
+- [x] 08-02-PLAN.md -- Tool implementation with tariff lookup, tax calculation, and retry orchestration
 
 ### Phase 9: Suggested Response Chips
 **Goal:** Users tap quick reply options instead of typing on mobile
@@ -164,7 +164,7 @@ Phases execute in numeric order: 7 -> 8 -> 9 -> 10 -> 11
 | 5. Error Recovery | v1.0 | 1/1 | Complete | 2026-01-25 |
 | 6. RAG Integration | v1.0 | 2/2 | Complete | 2026-01-25 |
 | 7. Conversation Persistence | v1.1 | 3/3 | Complete | 2026-01-27 |
-| 8. Function Calling Enhancement | v1.1 | 0/2 | Planning complete | - |
+| 8. Function Calling Enhancement | v1.1 | 2/2 | Complete | 2026-02-03 |
 | 9. Suggested Response Chips | v1.1 | 0/TBD | Not started | - |
 | 10. Validation Improvements | v1.1 | 0/TBD | Not started | - |
 | 11. Citation Quality Enhancement | v1.1 | 0/TBD | Not started | - |
@@ -172,4 +172,4 @@ Phases execute in numeric order: 7 -> 8 -> 9 -> 10 -> 11
 ---
 
 *Roadmap created: 2026-01-26*
-*Last updated: 2026-01-27*
+*Last updated: 2026-02-03*
