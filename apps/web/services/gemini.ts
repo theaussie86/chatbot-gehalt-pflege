@@ -15,7 +15,7 @@ export const sendMessageToGemini = async (
   userMessage: string,
   history: Message[],
   currentFormState?: FormState
-): Promise<{ text: string; formState?: FormState; inquiryId?: string }> => {
+): Promise<{ text: string; formState?: FormState; inquiryId?: string; suggestions?: string[] }> => {
   if (!currentConfig) {
     throw new Error("Chat not initialized with configuration.");
   }
@@ -44,13 +44,15 @@ export const sendMessageToGemini = async (
     return {
       text: data.text || "",
       formState: data.formState,
-      inquiryId: data.inquiryId
+      inquiryId: data.inquiryId,
+      suggestions: data.suggestions || []
     };
 
   } catch (error) {
     console.error("API Request Error:", error);
     return {
-      text: '[PROGRESS: 0] Entschuldigung, es gab einen Fehler bei der Verbindung. Bitte prüfen Sie Ihre Internetverbindung oder API-Konfiguration. [OPTIONS: ["Erneut versuchen"]]'
+      text: '[PROGRESS: 0] Entschuldigung, es gab einen Fehler bei der Verbindung. Bitte prüfen Sie Ihre Internetverbindung oder API-Konfiguration. [OPTIONS: ["Erneut versuchen"]]',
+      suggestions: []
     };
   }
 };
