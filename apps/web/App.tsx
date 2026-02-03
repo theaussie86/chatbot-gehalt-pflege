@@ -5,6 +5,7 @@ import { sendMessageToGemini, initializeChat, sendEmailExport } from './services
 import { MessageBubble } from './components/MessageBubble';
 import { StepBar } from './components/StepBar';
 import { ConversationStore } from './services/conversationStore';
+import { SuggestionChips } from './components/SuggestionChips';
 
 const INITIAL_MESSAGE_TEXT = "Hallo! Ich bin dein Assistent für den TVöD-Pflege Gehaltsrechner. Ich helfe dir, dein Gehalt im Pflegebereich zu schätzen. \n\nFür welches Jahr möchtest du eine Berechnung durchführen?";
 const currentYear = new Date().getFullYear();
@@ -37,6 +38,11 @@ export default function App({ config }: AppProps) {
   const [inquiryId, setInquiryId] = useState<string | null>(null);
   const [doiLoading, setDoiLoading] = useState(false);
   const [doiSubmitted, setDoiSubmitted] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [pendingChipAnimation, setPendingChipAnimation] = useState<{
+    text: string;
+    rect: DOMRect;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -79,8 +85,58 @@ export default function App({ config }: AppProps) {
       setMessages(savedConversation.messages);
       setFormState(savedConversation.formState);
       setProgress(savedConversation.progress);
+      // Don't persist suggestions - start fresh
+      setSuggestions([]);
     }
   }, [config]);
+
+  const animateChipToBubble = (chipRect: DOMRect) => {
+    // Find the newly added message bubble
+    const messagesContainer = document.querySelector('[data-messages-container]');
+    const lastBubble = messagesContainer?.lastElementChild;
+    if (!lastBubble) return;
+
+    const bubbleRect = lastBubble.getBoundingClientRect();
+
+    // Create flying clone
+    const clone = document.createElement('div');
+    clone.textContent = inputValue;
+    clone.className = `
+      fixed z-50 pointer-events-none
+      px-4 py-2 rounded-full
+      bg-[var(--primary-color)] text-white
+      font-medium text-sm
+    `;
+    clone.style.cssText = `
+      left: ${chipRect.left}px;
+      top: ${chipRect.top}px;
+      width: ${chipRect.width}px;
+      height: ${chipRect.height}px;
+      transition: all 300ms ease-out;
+    `;
+
+    document.body.appendChild(clone);
+
+    // Trigger animation on next frame
+    requestAnimationFrame(() => {
+      clone.style.left = `${bubbleRect.left}px`;
+      clone.style.top = `${bubbleRect.top}px`;
+      clone.style.width = `${bubbleRect.width}px`;
+      clone.style.height = `${bubbleRect.height}px`;
+      clone.style.borderRadius = '16px';
+    });
+
+    // Remove clone after animation
+    setTimeout(() => clone.remove(), 350);
+  };
+
+  const handleChipSelect = (text: string, chipRect?: DOMRect) => {
+    setInputValue(text);
+    if (chipRect) {
+      setPendingChipAnimation({ text, rect: chipRect });
+    }
+    inputRef.current?.focus();
+  };
 
   const parseResponse = (text: string): { cleanText: string; newProgress: number | null; resultData: SalaryResultData | null, options: string[] | undefined } => {
     let cleanText = text;
@@ -127,6 +183,8 @@ export default function App({ config }: AppProps) {
 
     if (!textToSend.trim() || isLoading) return;
 
+    // Clear suggestions while sending
+    setSuggestions([]);
     setInputValue('');
     setIsLoading(true);
 
@@ -141,9 +199,15 @@ export default function App({ config }: AppProps) {
     const updatedMessagesWithUser = [...messages, newUserMsg];
     setMessages(updatedMessagesWithUser);
 
+    // Trigger chip-to-bubble animation if pending
+    if (pendingChipAnimation && textToSend === pendingChipAnimation.text) {
+      animateChipToBubble(pendingChipAnimation.rect);
+      setPendingChipAnimation(null);
+    }
+
     try {
       // Get AI response with current form state
-      const { text: rawText, formState: newFormState, inquiryId: newInquiryId } = await sendMessageToGemini(
+      const { text: rawText, formState: newFormState, inquiryId: newInquiryId, suggestions: newSuggestions } = await sendMessageToGemini(
         textToSend,
         messages,
         formState
@@ -177,6 +241,9 @@ export default function App({ config }: AppProps) {
 
       const updatedMessages = [...updatedMessagesWithUser, newBotMsg];
       setMessages(updatedMessages);
+
+      // Set new suggestions (or clear if none)
+      setSuggestions(newSuggestions || []);
 
       // Save conversation to localStorage (unless completed)
       if (finalFormState.section === 'completed') {
@@ -237,6 +304,8 @@ export default function App({ config }: AppProps) {
     setInquiryId(null);
     setDoiLoading(false);
     setDoiSubmitted(false);
+    setSuggestions([]);
+    setPendingChipAnimation(null);
 
     // Focus input
     inputRef.current?.focus();
@@ -317,7 +386,7 @@ export default function App({ config }: AppProps) {
       </div>
 
       {/* Chat Area */}
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 scrollbar-hide">
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 scrollbar-hide" data-messages-container>
         {messages.map((msg) => (
           <MessageBubble
             key={msg.id}
@@ -347,8 +416,20 @@ export default function App({ config }: AppProps) {
       </main>
 
       {/* Input Area */}
-      <footer className="bg-white p-4 border-t border-slate-200">
-        <div className="relative flex items-end gap-2 bg-slate-100 p-2 pr-2 rounded-3xl border border-transparent focus-within:bg-white focus-within:ring-4 transition-all focus-within:border-[var(--primary-ring)] focus-within:ring-[var(--primary-light)]">
+      <footer className="bg-white border-t border-slate-200">
+        {/* Suggestion Chips - above input */}
+        <div className="pt-2">
+          <SuggestionChips
+            suggestions={suggestions}
+            onSelect={handleChipSelect}
+            isTyping={inputValue.length > 0}
+            disabled={isLoading}
+          />
+        </div>
+
+        {/* Input container */}
+        <div className="p-4 pt-0">
+          <div className="relative flex items-end gap-2 bg-slate-100 p-2 pr-2 rounded-3xl border border-transparent focus-within:bg-white focus-within:ring-4 transition-all focus-within:border-[var(--primary-ring)] focus-within:ring-[var(--primary-light)]">
           <input
             ref={inputRef}
             type="text"
@@ -371,10 +452,11 @@ export default function App({ config }: AppProps) {
             <Send size={20} />
           </button>
         </div>
-        <div className="text-center mt-2">
-            <p className="text-[10px] text-slate-400">
-                AI kann Fehler machen. Überprüfe wichtige Infos.
-            </p>
+          <div className="text-center mt-2">
+              <p className="text-[10px] text-slate-400">
+                  AI kann Fehler machen. Überprüfe wichtige Infos.
+              </p>
+          </div>
         </div>
       </footer>
     </div>
