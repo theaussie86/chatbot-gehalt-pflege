@@ -18,12 +18,12 @@
 
 **Milestone:** v1.1 Chat Intelligence (Phases 7-11)
 
-Phase: 9 of 11 (Suggested Response Chips) — COMPLETE ✅
-Plan: 02 of 02 — COMPLETE ✅
-Status: Phase complete
-Last activity: 2026-02-03 — Completed 09-02-PLAN.md (Widget UI Integration)
+Phase: 10 of 11 (Validation Improvements) — IN PROGRESS
+Plan: 01 of 02 — COMPLETE ✅
+Status: In progress
+Last activity: 2026-02-03 — Completed 10-01-PLAN.md (Form Field Schemas & Validation Service)
 
-Progress: [████████████████░░░░] 84% (21/25 plans across all milestones)
+Progress: [█████████████████░░░] 88% (22/25 plans across all milestones)
 
 ## Performance Metrics
 
@@ -50,7 +50,8 @@ Progress: [████████████████░░░░] 84% (21
 - Phase 7 complete ✅ (3/3 plans)
 - Phase 8 complete ✅ (2/2 plans)
 - Phase 9 complete ✅ (2/2 plans)
-- Phase 10-11: Not started
+- Phase 10 in progress (1/2 plans complete)
+- Phase 11: Not started
 
 *Updated after each plan completion*
 
@@ -113,6 +114,12 @@ Full decision log in PROJECT.md Key Decisions table.
 - FLIP animation technique for 60fps chip-to-bubble transition (300ms ease-out)
 - Tap-to-fill without auto-submit (user can edit before sending)
 
+**Phase 10 decisions:**
+- Zod schemas as single source of truth for field validation (both extraction and validation phases)
+- German number word pre-processing (eins, zwei, drei → 1, 2, 3) for natural language input
+- 30-min TTL for retry context (fresh start when user returns after inactivity)
+- Cross-field group validation requires tarif context for P/E prefix (P5-P15 for Pflege, E5-E15 for general)
+
 ### Pending Todos
 
 **Phase 7 (User Setup Required):**
@@ -149,17 +156,17 @@ Phase 11 must address:
 
 ## Session Continuity
 
-**Last command:** /gsd:execute-phase 9
+**Last command:** /gsd:execute-plan 10-01
 
 **Last session:** 2026-02-03
 
-**Stopped at:** Phase 9 verified ✅ (5/5 must-haves passed). ROADMAP.md and REQUIREMENTS.md updated.
+**Stopped at:** Phase 10 Plan 01 complete ✅ (2/2 tasks, 3min execution). Zod schemas and FieldValidator service created.
 
 **Resume file:** None
 
-**Next step:** Run `/gsd:discuss-phase 10` or `/gsd:plan-phase 10` for Validation Improvements
+**Next step:** Execute Phase 10 Plan 02 (Tool Extraction Integration) or verify Phase 10 completion
 
 ---
 
 *Last updated: 2026-02-03*
-*Phase 9 complete: Suggested response chips with tap-to-fill UI, FLIP animation, 44px touch targets*
+*Phase 10-01 complete: Zod form field schemas with German pre-processors, FieldValidator service with retry tracking*
