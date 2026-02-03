@@ -3,8 +3,8 @@
 **Project:** Gehalt-Pflege Document Pipeline
 **Current Milestone:** v1.1 Chat Intelligence
 **Current Phase:** Phase 11 of 11 (Citation Quality Enhancement)
-**Current Plan:** 01
-**Status:** In progress
+**Current Plan:** 02
+**Status:** MILESTONE COMPLETE
 
 ## Project Reference
 
@@ -12,25 +12,25 @@
 
 **Core value:** Documents uploaded by admins must reliably become searchable context for the chatbot — no orphaned files, no missing embeddings, no data loss.
 
-**Current focus:** v1.1 Chat Intelligence milestone — conversation persistence, function calling, suggested responses, validation, citations
+**Current focus:** v1.1 Chat Intelligence milestone COMPLETE — conversation persistence, function calling, suggested responses, validation, citations
 
 ## Current Position
 
-**Milestone:** v1.1 Chat Intelligence (Phases 7-11)
+**Milestone:** v1.1 Chat Intelligence (Phases 7-11) — COMPLETE
 
-Phase: 11 of 11 (Citation Quality Enhancement) — IN PROGRESS
-Plan: 01 of 02 — COMPLETE ✅
-Status: Plan 11-01 complete
-Last activity: 2026-02-03 — Completed 11-01-PLAN.md (page data schema and extraction)
+Phase: 11 of 11 (Citation Quality Enhancement) — COMPLETE
+Plan: 02 of 02 — COMPLETE
+Status: Milestone complete
+Last activity: 2026-02-03 — Completed 11-02-PLAN.md (citation integration)
 
-Progress: [███████████████████░] 96% (24/25 plans across all milestones)
+Progress: [████████████████████] 100% (25/25 plans across all milestones)
 
 ## Performance Metrics
 
 **Velocity (v1.0 baseline):**
-- Total plans completed: 24
+- Total plans completed: 25
 - Milestone v1.0: 6 phases, 14 plans
-- Milestone v1.1: Phase 7 complete (3 plans), Phase 8 complete (2 plans), Phase 9 complete (2 plans), Phase 10 complete (2 plans), Phase 11 in progress (1/2 plans)
+- Milestone v1.1: 5 phases, 11 plans
 - Average duration: Data from v1.0 execution
 - Total execution time: Data from v1.0 execution
 
@@ -47,11 +47,11 @@ Progress: [███████████████████░] 96% (24
 
 **v1.1 Progress:**
 - Phases planned: 5 (Phases 7-11)
-- Phase 7 complete ✅ (3/3 plans)
-- Phase 8 complete ✅ (2/2 plans)
-- Phase 9 complete ✅ (2/2 plans)
-- Phase 10 complete ✅ (2/2 plans)
-- Phase 11 in progress (1/2 plans)
+- Phase 7 complete (3/3 plans)
+- Phase 8 complete (2/2 plans)
+- Phase 9 complete (2/2 plans)
+- Phase 10 complete (2/2 plans)
+- Phase 11 complete (2/2 plans)
 
 *Updated after each plan completion*
 
@@ -127,6 +127,10 @@ Full decision log in PROJECT.md Key Decisions table.
 - [PAGE:N] markers in Gemini extraction prompt for page tracking
 - Track page boundaries during chunking (not post-hoc)
 - Tri-state has_page_data flag (null/true/false) for backward compatibility
+- Store citations in formState.ragCitations to persist through session
+- Only cite chunks with page data (strict quality)
+- Consolidate citations by document name before storage and display
+- Remove prompt instruction to cite sources in user-facing responses
 
 ### Pending Todos
 
@@ -142,42 +146,42 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ### Blockers/Concerns
 
-**From research (to address during phases):**
+**All P0/P1 concerns addressed:**
 
 Phase 8 addressed:
-- ✅ P0-2: Function calling schema drift (single source of truth, Zod validation)
+- P0-2: Function calling schema drift (single source of truth, Zod validation)
 
 Phase 9 addressed:
-- ✅ P1-1: Suggested response overload (max 4 chips, skip for freeform fields)
-- ✅ P1-5: Separate LLM call for suggestions (AI generation with timeout, hybrid approach)
+- P1-1: Suggested response overload (max 4 chips, skip for freeform fields)
+- P1-5: Separate LLM call for suggestions (AI generation with timeout, hybrid approach)
 
 Phase 10 addressed:
-- ✅ P1-3: Data extraction relies solely on LLM (two-phase validation with FieldValidator)
+- P1-3: Data extraction relies solely on LLM (two-phase validation with FieldValidator)
 
-Phase 11 addressing:
-- P0-3: RAG citation hallucination (store page metadata, don't generate) — Plan 01 complete, Plan 02 pending
+Phase 11 addressed:
+- P0-3: RAG citation hallucination (store page metadata, don't generate)
 
 ### Open Questions
 
-**Phase 11 (Citation Quality):**
+**Phase 11 (Citation Quality) - for future iteration:**
 - Does Gemini File API preserve page boundaries in German tariff PDFs?
 - What's accuracy rate for page marker extraction?
 - Is unpdf more reliable than Gemini for page tracking?
-- Test during Phase 11 Day 1, pivot to unpdf if Gemini <80% accurate
+- Test with real documents, pivot to unpdf if Gemini <80% accurate
 
 ## Session Continuity
 
-**Last command:** /gsd:execute-plan 11-01
+**Last command:** /gsd:execute-plan 11-02
 
 **Last session:** 2026-02-03
 
-**Stopped at:** Plan 11-01 complete. Page data schema and extraction implemented.
+**Stopped at:** v1.1 Chat Intelligence milestone complete. All 25 plans executed.
 
 **Resume file:** None
 
-**Next step:** Execute plan 11-02 for admin citation display
+**Next step:** Plan v1.2 milestone or production deployment
 
 ---
 
 *Last updated: 2026-02-03*
-*Plan 11-01 complete: Page data schema (page_start, page_end, has_page_data) and page-aware document processing*
+*v1.1 Chat Intelligence milestone complete: conversation persistence, function calling, suggested responses, validation, citations*
