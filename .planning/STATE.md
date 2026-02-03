@@ -18,12 +18,12 @@
 
 **Milestone:** v1.1 Chat Intelligence (Phases 7-11)
 
-Phase: 8 of 11 (Function Calling Enhancement) — COMPLETE ✅
-Plan: — (phase complete)
-Status: Verified
-Last activity: 2026-02-03 — Phase 8 verified (5/5 must-haves passed)
+Phase: 9 of 11 (Suggested Response Chips)
+Plan: 01 of 02 — COMPLETE ✅
+Status: In progress
+Last activity: 2026-02-03 — Completed 09-01-PLAN.md (Suggestion Generation Service)
 
-Progress: [████████████████░░░░] 80% (19/25 plans across all milestones)
+Progress: [████████████████░░░░] 80% (20/25 plans across all milestones)
 
 ## Performance Metrics
 
@@ -49,7 +49,8 @@ Progress: [████████████████░░░░] 80% (19
 - Phases planned: 5 (Phases 7-11)
 - Phase 7 complete ✅ (3/3 plans)
 - Phase 8 complete ✅ (2/2 plans)
-- Phase 9-11: Not started
+- Phase 9 in progress (1/2 plans complete)
+- Phase 10-11: Not started
 
 *Updated after each plan completion*
 
@@ -99,6 +100,14 @@ Full decision log in PROJECT.md Key Decisions table.
 - Session-based retry context key format: {sessionId}:{toolName}
 - Real salary tables for TVöD, TV-L, AVR (P5-P15, E5-E15 groups)
 
+**Phase 9 decisions (Plan 01):**
+- Hybrid suggestion approach: predefined chips for known fields, AI-generated for open questions
+- 2s timeout for AI suggestions with graceful fallback to empty array
+- Max 4 chips per response to prevent UI overload
+- Skip chips for freeform fields (group) and completed state
+- Summary stage returns confirmation chips: ['Ja', 'Etwas ändern']
+- Pass responseText to generateSuggestions for contextual AI suggestions
+
 ### Pending Todos
 
 **Phase 7 (User Setup Required):**
@@ -115,9 +124,9 @@ Full decision log in PROJECT.md Key Decisions table.
 Phase 8 addressed:
 - ✅ P0-2: Function calling schema drift (single source of truth, Zod validation)
 
-Phase 9 must address:
-- P1-1: Suggested response overload (3-4 chips max, multiple-choice only)
-- P1-5: Separate LLM call for suggestions (use structured output in main call)
+Phase 9 addressed (Plan 01):
+- ✅ P1-1: Suggested response overload (max 4 chips, skip for freeform fields)
+- 🔄 P1-5: Separate LLM call for suggestions (AI generation with timeout, Plan 02 may optimize)
 
 Phase 10 must address:
 - P1-3: Data extraction relies solely on LLM (two-phase validation)
@@ -135,17 +144,17 @@ Phase 11 must address:
 
 ## Session Continuity
 
-**Last command:** /gsd:execute-phase 8
+**Last command:** /gsd:execute-plan 09-01
 
 **Last session:** 2026-02-03
 
-**Stopped at:** Phase 8 verified ✅ (5/5 must-haves passed). ROADMAP.md and REQUIREMENTS.md updated.
+**Stopped at:** Phase 09 Plan 01 complete ✅ (2/2 tasks). SUMMARY created: .planning/phases/09-suggested-response-chips/09-01-SUMMARY.md
 
 **Resume file:** None
 
-**Next step:** Run `/gsd:discuss-phase 9` or `/gsd:plan-phase 9` for Suggested Response Chips
+**Next step:** Run `/gsd:execute-plan 09-02` for Widget UI Integration or `/gsd:plan-phase 10` for Two-Phase Validation
 
 ---
 
 *Last updated: 2026-02-03*
-*Phase 8 complete: Zod tool schemas, tariff/tax tools, ToolExecutor with retry logic, GeminiAgent integration*
+*Phase 9 Plan 01 complete: SuggestionService with stage-aware chip generation, hybrid predefined/AI approach*
