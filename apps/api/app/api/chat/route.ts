@@ -4,10 +4,10 @@ import { GeminiAgent } from "../../../utils/agent/GeminiAgent";
 import { Content } from "@google/genai";
 import type { FormState, UserIntent } from "../../../types/form";
 import { ConversationAnalyzer, type IntentAnalysis } from "../../../utils/agent/ConversationAnalyzer";
-import { ResponseValidator, type ValidationResult } from "../../../utils/agent/ResponseValidator";
+import { fieldValidator, type FieldValidationResult } from "../../../utils/agent/FieldValidator";
 import { VectorstoreService } from "../../../lib/vectorstore/VectorstoreService";
 import { TaxWrapper, type SalaryInput } from "../../../utils/tax";
-import { generateSuggestions } from "../../../lib/suggestions";
+import { generateSuggestions, generateEscalationChips } from "../../../lib/suggestions";
 
 // Lazy Initialize Supabase Admin Client
 let supabaseAdminInstance: SupabaseClient | null = null;
@@ -142,7 +142,6 @@ export async function POST(request: Request) {
                 process.env.NEXT_PUBLIC_SUPABASE_URL!,
                 process.env.SUPABASE_SERVICE_KEY!
             );
-            const responseValidator = new ResponseValidator(vectorstore);
 
             // --- US-019: UPDATE CONVERSATION CONTEXT ---
             if (!nextFormState.conversationContext) {
@@ -457,15 +456,17 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                     const modification = JSON.parse(cleanJson);
 
                     if (modification.field && modification.newValue && modification.section) {
-                        // Validate and update the field
-                        const validationResult = await responseValidator.validate(
+                        // Use FieldValidator instead of ResponseValidator
+                        // activeProjectId used for session tracking - FieldValidator handles TTL-based reset
+                        const validationResult = fieldValidator.validate(
                             modification.field,
                             modification.newValue,
-                            activeProjectId
+                            activeProjectId,  // FieldValidator uses TTL-based context expiry (30 min)
+                            nextFormState     // Pass formState for cross-field validation
                         );
 
                         if (validationResult.valid) {
-                            // Update the field
+                            // Update the field with normalized value
                             const section = modification.section as 'job_details' | 'tax_details';
                             if (!nextFormState.data[section]) {
                                 nextFormState.data[section] = {};
@@ -490,10 +491,49 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                                 suggestions: await generateSuggestions(nextFormState, summaryResponse)
                             });
                         } else {
-                            // Validation failed
+                            // Handle validation failure
                             nextFormState.validationErrors = {
-                                [modification.field]: validationResult.error || 'Ungültiger Wert'
+                                [modification.field]: validationResult.error?.message || 'Ungültiger Wert'
                             };
+
+                            // Check escalation
+                            if (validationResult.shouldEscalate && validationResult.error?.validOptions) {
+                                const escalationChips = generateEscalationChips(
+                                    modification.field,
+                                    validationResult.error.validOptions
+                                );
+
+                                const fieldLabel = SalaryStateMachine.getFieldLabel(modification.field);
+                                const escalationPrompt = `
+Du bist ein freundlicher Gehalts-Chatbot.
+Der Nutzer hat Schwierigkeiten mit der Eingabe für "${fieldLabel}".
+
+Bisherige Versuche: ${validationResult.retryCount}
+Letzter Wert: "${validationResult.error?.received || modification.newValue}"
+
+Aufgabe: Hilf dem Nutzer freundlich. Erkläre kurz, dass du die Eingabe nicht verstanden hast.
+Zeige Verständnis und biete an, aus den Optionen zu wählen.
+
+Beispiel-Antwort:
+"Kein Problem, das kann verwirrend sein! Für die ${fieldLabel} kannst du einfach eine der Optionen unten antippen."
+
+Halte dich kurz (1-2 Sätze).
+                                `;
+
+                                const escalationResponse = await client.models.generateContent({
+                                    model: 'gemini-2.5-flash',
+                                    contents: escalationPrompt
+                                });
+
+                                const escalationText = (escalationResponse.text || '') +
+                                    `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
+
+                                return NextResponse.json({
+                                    text: escalationText,
+                                    formState: nextFormState,
+                                    suggestions: escalationChips
+                                });
+                            }
                         }
                     }
                 } catch (e) {
@@ -559,26 +599,78 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                     const extraction = JSON.parse(cleanJson);
 
                     if (extraction.extracted && Object.keys(extraction.extracted).length > 0) {
-                        // --- US-006: VALIDATE AND ENRICH EACH FIELD ---
+                        // --- US-006: TWO-PHASE VALIDATION (LLM extracts -> Zod validates) ---
                         const section = nextFormState.section as 'job_details' | 'tax_details';
                         if (!nextFormState.data[section]) nextFormState.data[section] = {};
 
+                        // Session ID for retry tracking - use activeProjectId
+                        // FieldValidator uses TTL-based context expiry (30 min) to implement:
+                        // - Retry counts accumulate within active conversation
+                        // - Retry counts reset when user returns after being away (TTL expired)
+                        const validationSessionId = activeProjectId;
+
                         for (const [field, value] of Object.entries(extraction.extracted)) {
-                            const validationResult: ValidationResult = await responseValidator.validate(
+                            // TWO-PHASE VALIDATION: LLM extracted -> Zod validates
+                            const validationResult: FieldValidationResult = fieldValidator.validate(
                                 field,
                                 value,
-                                activeProjectId
+                                validationSessionId,
+                                nextFormState  // Pass formState for cross-field validation (e.g., group needs tarif)
                             );
 
                             if (validationResult.valid) {
-                                // Use normalized value if available
+                                // Accept normalized value
                                 nextFormState.data[section]![field] = validationResult.normalizedValue ?? value;
+                                // Clear any previous error for this field
+                                if (nextFormState.validationErrors?.[field]) {
+                                    delete nextFormState.validationErrors[field];
+                                }
                             } else {
-                                // Store validation error for clarification
+                                // Store validation error
                                 if (!nextFormState.validationErrors) nextFormState.validationErrors = {};
-                                nextFormState.validationErrors[field] = validationResult.error || 'Ungültiger Wert';
-                                if (validationResult.suggestion) {
-                                    nextFormState.validationErrors[field] += `. ${validationResult.suggestion}`;
+                                nextFormState.validationErrors[field] = validationResult.error?.message || 'Ungültiger Wert';
+
+                                // Check if escalation needed (3 failures)
+                                if (validationResult.shouldEscalate && validationResult.error?.validOptions) {
+                                    // Generate escalation chips
+                                    const escalationChips = generateEscalationChips(
+                                        field,
+                                        validationResult.error.validOptions
+                                    );
+
+                                    // Get field label - getFieldLabel returns field name as fallback for unmapped fields
+                                    const fieldLabel = SalaryStateMachine.getFieldLabel(field);
+
+                                    // Build escalation response
+                                    const escalationPrompt = `
+Du bist ein freundlicher Gehalts-Chatbot.
+Der Nutzer hat Schwierigkeiten mit der Eingabe für "${fieldLabel}".
+
+Bisherige Versuche: ${validationResult.retryCount}
+Letzter Wert: "${validationResult.error?.received || value}"
+
+Aufgabe: Hilf dem Nutzer freundlich. Erkläre kurz, dass du die Eingabe nicht verstanden hast.
+Zeige Verständnis und biete an, aus den Optionen zu wählen.
+
+Beispiel-Antwort:
+"Kein Problem, das kann verwirrend sein! Für die ${fieldLabel} kannst du einfach eine der Optionen unten antippen."
+
+Halte dich kurz (1-2 Sätze).
+                                    `;
+
+                                    const escalationResponse = await client.models.generateContent({
+                                        model: 'gemini-2.5-flash',
+                                        contents: escalationPrompt
+                                    });
+
+                                    const escalationText = (escalationResponse.text || '') +
+                                        `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
+
+                                    return NextResponse.json({
+                                        text: escalationText,
+                                        formState: nextFormState,
+                                        suggestions: escalationChips
+                                    });
                                 }
                             }
                         }
@@ -589,34 +681,48 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                 }
             }
 
-            // --- US-008: GENERATE CLARIFICATION IF VALIDATION ERRORS ---
+            // --- US-008: GENERATE RE-PROMPT IF VALIDATION ERRORS ---
             if (nextFormState.validationErrors && Object.keys(nextFormState.validationErrors).length > 0) {
-                const errorMessages = Object.entries(nextFormState.validationErrors)
-                    .map(([field, error]) => `- ${SalaryStateMachine.getFieldLabel(field)}: ${error}`)
-                    .join('\n');
+                const errorEntries = Object.entries(nextFormState.validationErrors);
+                const firstError = errorEntries[0];
+                const [errorField, errorMessage] = firstError;
 
-                const clarifyPrompt = `
-                    Du bist ein freundlicher Gehalts-Chatbot für Pflegekräfte.
+                // Get field label - getFieldLabel returns field name as fallback for unmapped fields
+                const errorFieldLabel = SalaryStateMachine.getFieldLabel(errorField);
 
-                    Bei einigen Angaben gab es Probleme:
-                    ${errorMessages}
+                // Build re-prompt with specific correction request
+                const rePromptContent = `
+Du bist ein freundlicher Gehalts-Chatbot für Pflegekräfte.
 
-                    Aufgabe: Erkläre dem Nutzer freundlich, dass du die Eingabe nicht ganz verstanden hast.
-                    Gib Beispiele für gültige Eingaben.
+Bei der Angabe für "${errorFieldLabel}" gab es ein Problem:
+${errorMessage}
 
-                    WICHTIG: Sprich den Nutzer direkt an, sei nicht technisch.
-                    Beispiel: "Ich habe deine Angabe zu den Wochenstunden nicht ganz verstanden. Kannst du mir sagen, wie viele Stunden du pro Woche arbeitest? Zum Beispiel 38,5 für Vollzeit oder 20 für Teilzeit."
+Aufgabe: Erkläre dem Nutzer freundlich, was nicht geklappt hat.
+- Zeige Verständnis
+- Gib 2-3 Beispiele für gültige Eingaben
+- Frage direkt nach dem korrekten Wert
+
+Beispiel-Formulierung:
+"Hmm, das habe ich nicht ganz verstanden. ${errorMessage} Kannst du mir das nochmal sagen? Zum Beispiel: ..."
+
+WICHTIG:
+- Sei freundlich und geduldig
+- Sprich den Nutzer direkt an (du)
+- Halte dich kurz (2-3 Sätze)
                 `;
 
-                const responseResult = await client.models.generateContent({
+                const rePromptResult = await client.models.generateContent({
                     model: 'gemini-2.5-flash',
-                    contents: clarifyPrompt
+                    contents: rePromptContent
                 });
-                const validationErrorText = (responseResult.text || '') + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
+
+                const rePromptText = (rePromptResult.text || '') +
+                    `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
+
                 return NextResponse.json({
-                    text: validationErrorText,
+                    text: rePromptText,
                     formState: nextFormState,
-                    suggestions: await generateSuggestions(nextFormState, validationErrorText)
+                    suggestions: await generateSuggestions(nextFormState, rePromptText)
                 });
             }
 
