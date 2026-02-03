@@ -5,7 +5,15 @@ import { Content } from "@google/genai";
 import type { FormState, UserIntent } from "../../../types/form";
 import { ConversationAnalyzer, type IntentAnalysis } from "../../../utils/agent/ConversationAnalyzer";
 import { fieldValidator, type FieldValidationResult } from "../../../utils/agent/FieldValidator";
-import { VectorstoreService } from "../../../lib/vectorstore/VectorstoreService";
+import { VectorstoreService, formatPageRange } from "../../../lib/vectorstore/VectorstoreService";
+
+// Citation type for admin traceability
+interface Citation {
+  documentId: string;
+  documentName: string;
+  pages: string | null;  // "S. 5" or "S. 5-7" or null
+  similarity: number;
+}
 import { TaxWrapper, type SalaryInput } from "../../../utils/tax";
 import { generateSuggestions, generateEscalationChips } from "../../../lib/suggestions";
 
@@ -199,7 +207,7 @@ export async function POST(request: Request) {
                 });
             }
 
-            // --- US-007: HANDLE QUESTION INTENT WITH RAG + CITATIONS ---
+            // --- US-007: HANDLE QUESTION INTENT WITH RAG (NO USER-FACING CITATIONS) ---
             if (nextFormState.userIntent === 'question') {
                 // Query vectorstore with metadata for citation attribution
                 const ragResults = await vectorstore.queryWithMetadata(message, activeProjectId, 5);
@@ -207,33 +215,48 @@ export async function POST(request: Request) {
                 // Results are already filtered by 0.5 threshold in VectorstoreService
                 const relevantResults = ragResults;
 
+                // Build citations array for admin storage (only chunks with page data per CONTEXT.md)
+                const ragCitations: Citation[] = relevantResults
+                    .filter(r => r.metadata.pageStart !== null)  // Only cite chunks with page data
+                    .slice(0, 3)  // Top 3 most relevant
+                    .map(r => ({
+                        documentId: r.metadata.documentId,
+                        documentName: r.metadata.filename,
+                        pages: formatPageRange(r.metadata.pageStart, r.metadata.pageEnd),
+                        similarity: r.similarity
+                    }));
+
+                // Store citations in formState for later persistence when calculation completes
+                if (ragCitations.length > 0) {
+                    nextFormState.ragCitations = ragCitations;
+                }
+
                 // Log RAG metadata in development mode
                 if (process.env.NODE_ENV === 'development') {
                     console.log('\n━━━ RAG Query ━━━');
                     console.log(`Question: ${message}`);
                     console.log(`Project: ${activeProjectId}`);
                     console.log(`Results: ${relevantResults.length}`);
+                    console.log(`Citations (with page data): ${ragCitations.length}`);
                     if (relevantResults.length > 0) {
                         console.log('\nMatches:');
                         relevantResults.forEach((r, i) => {
                             console.log(`  [${i + 1}] ${r.metadata.filename} (chunk ${r.metadata.chunkIndex})`);
                             console.log(`      Similarity: ${(r.similarity * 100).toFixed(1)}%`);
+                            console.log(`      Pages: ${formatPageRange(r.metadata.pageStart, r.metadata.pageEnd) || 'N/A'}`);
                             console.log(`      Preview: ${r.content.substring(0, 100)}...`);
                         });
                     }
                     console.log('━━━━━━━━━━━━━━━━━\n');
                 }
 
-                // Build context section with citations
+                // Build context section WITHOUT citation labels (admin-only citations per CONTEXT.md)
                 let contextSection = '';
                 if (relevantResults.length > 0) {
                     contextSection = `
 Relevante Informationen aus hochgeladenen Dokumenten:
 
-${relevantResults.map((r, i) => `
-[Quelle ${i + 1}: ${r.metadata.filename}]
-${r.content}
-`).join('\n---\n')}
+${relevantResults.map(r => r.content).join('\n\n---\n\n')}
 `;
                 } else {
                     contextSection = 'Hinweis: Ich habe keine relevanten Informationen in den hochgeladenen Dokumenten gefunden.';
@@ -252,15 +275,15 @@ Noch fehlende Informationen: ${nextFormState.missingFields?.join(', ') || 'keine
 
 Aufgabe:
 1. Beantworte die Frage kurz und praezise basierend auf den Informationen aus den Dokumenten
-2. Zitiere die Quelle am Ende deiner Antwort (z.B. "Quelle: Dokument.pdf")
-3. Wenn keine relevanten Informationen gefunden wurden, sage das ehrlich
-4. Kehre dann sanft zum Interview zurueck und frage nach den fehlenden Daten
+2. Wenn keine relevanten Informationen gefunden wurden, sage das ehrlich
+3. Kehre dann sanft zum Interview zurueck und frage nach den fehlenden Daten
 
 WICHTIG:
 - Frage nicht nach technischen Begriffen wie "Entgeltgruppe" oder "Stufe"
 - Frage stattdessen nach dem Beruf, der Ausbildung, den Arbeitsstunden, etc.
 - Antworte NUR mit Informationen aus den bereitgestellten Quellen
 - Bei Unsicherheit: "Dazu habe ich keine Informationen in meinen Dokumenten."
+- NENNE KEINE QUELLENANGABEN in deiner Antwort (die werden intern gespeichert)
 
 Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                 `;
@@ -359,7 +382,11 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
 
                     const formattedResult = formatCalculationResult(calculationResult, jobData, taxData);
 
-                    // --- US-017: SAVE TO DATABASE ---
+                    // --- US-017: SAVE TO DATABASE WITH CITATIONS ---
+                    // Consolidate citations by document (merge pages from same document)
+                    const rawCitations = (nextFormState.ragCitations as Citation[] | undefined) || [];
+                    const consolidatedCitations = consolidateCitationsByDocument(rawCitations);
+
                     const saveResult = await getSupabaseAdmin()
                         .from('salary_inquiries')
                         .insert({
@@ -373,7 +400,8 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                             details: {
                                 ...calculationResult,
                                 job_details: jobData,
-                                tax_details: taxData
+                                tax_details: taxData,
+                                citations: consolidatedCitations  // Admin-only RAG citations
                             }
                         })
                         .select('id')
@@ -1024,6 +1052,40 @@ Beispiel-Dialoge:
 
 Fortschritt einbauen: [PROGRESS: ${progress}]
     `;
+}
+
+/**
+ * Consolidate citations by document name
+ * Merges page numbers from the same document into a single entry
+ */
+function consolidateCitationsByDocument(citations: Citation[]): Citation[] {
+    if (citations.length === 0) return [];
+
+    const byDocument = new Map<string, { documentId: string; pages: Set<string>; maxSimilarity: number }>();
+
+    for (const citation of citations) {
+        const existing = byDocument.get(citation.documentName);
+        if (existing) {
+            if (citation.pages) existing.pages.add(citation.pages);
+            existing.maxSimilarity = Math.max(existing.maxSimilarity, citation.similarity);
+        } else {
+            byDocument.set(citation.documentName, {
+                documentId: citation.documentId,
+                pages: new Set(citation.pages ? [citation.pages] : []),
+                maxSimilarity: citation.similarity
+            });
+        }
+    }
+
+    // Convert back to array, sorted by highest similarity
+    return Array.from(byDocument.entries())
+        .map(([documentName, data]) => ({
+            documentId: data.documentId,
+            documentName,
+            pages: data.pages.size > 0 ? Array.from(data.pages).join(', ') : null,
+            similarity: data.maxSimilarity
+        }))
+        .sort((a, b) => b.similarity - a.similarity);
 }
 
 // Enable CORS Preflight

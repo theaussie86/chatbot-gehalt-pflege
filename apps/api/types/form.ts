@@ -37,6 +37,13 @@ export interface FormState {
   conversationContext?: string[];
   userIntent?: UserIntent;
   validationErrors?: Record<string, string>;
+  // RAG citations for admin traceability (Phase 11)
+  ragCitations?: Array<{
+    documentId: string;
+    documentName: string;
+    pages: string | null;
+    similarity: number;
+  }>;
 }
 
 /**
