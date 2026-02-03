@@ -3,7 +3,7 @@
 **Project:** Gehalt-Pflege Document Pipeline
 **Current Milestone:** v1.1 Chat Intelligence
 **Current Phase:** Phase 8 of 11 (Function Calling Enhancement)
-**Current Plan:** 01 of 03
+**Current Plan:** 02 of 03
 **Status:** In progress
 
 ## Project Reference
@@ -19,18 +19,18 @@
 **Milestone:** v1.1 Chat Intelligence (Phases 7-11)
 
 Phase: 8 of 11 (Function Calling Enhancement)
-Plan: 01 of 03 (Zod Tool Schemas)
-Status: Plan 01 complete
-Last activity: 2026-02-03 — Completed 08-01-PLAN.md
+Plan: 02 of 03 (Tool Execution Handlers)
+Status: Plan 02 complete
+Last activity: 2026-02-03 — Completed 08-02-PLAN.md
 
-Progress: [██████████████░░░░░░] 72% (18/25 plans across all milestones)
+Progress: [███████████████░░░░░] 76% (19/25 plans across all milestones)
 
 ## Performance Metrics
 
 **Velocity (v1.0 baseline):**
-- Total plans completed: 18
+- Total plans completed: 19
 - Milestone v1.0: 6 phases, 14 plans
-- Milestone v1.1: Phase 7 complete (3 plans), Phase 8 in progress (1/3 plans)
+- Milestone v1.1: Phase 7 complete (3 plans), Phase 8 in progress (2/3 plans)
 - Average duration: Data from v1.0 execution
 - Total execution time: Data from v1.0 execution
 
@@ -48,7 +48,7 @@ Progress: [██████████████░░░░░░] 72% (18
 **v1.1 Progress:**
 - Phases planned: 5 (Phases 7-11)
 - Phase 7 complete (3/3 plans)
-- Phase 8 in progress (1/3 plans)
+- Phase 8 in progress (2/3 plans)
 - Phase 9-11: Not started
 
 *Updated after each plan completion*
@@ -93,6 +93,13 @@ Full decision log in PROJECT.md Key Decisions table.
 - German .describe() annotations for AI context
 - z.infer<typeof schema> for TypeScript type inference
 
+**Phase 8 decisions (08-02):**
+- Use Gemini SDK Type enum in schemaConverter for proper type compatibility
+- Max 6 tool iterations in GeminiAgent to allow tariff + tax + potential retries
+- Singleton ToolExecutor for shared session state across requests
+- German error suggestions in ToolExecutor for AI context
+- Session-based retry context key format: {sessionId}:{toolName}
+
 ### Pending Todos
 
 **Phase 7 (User Setup Required):**
@@ -107,7 +114,7 @@ Full decision log in PROJECT.md Key Decisions table.
 **From research (to address during phases):**
 
 Phase 8 must address:
-- P0-2: Function calling schema drift (single source of truth, Zod validation) - ADDRESSED in 08-01
+- P0-2: Function calling schema drift (single source of truth, Zod validation) - ADDRESSED in 08-01 and 08-02
 
 Phase 9 must address:
 - P1-1: Suggested response overload (3-4 chips max, multiple-choice only)
@@ -129,17 +136,17 @@ Phase 11 must address:
 
 ## Session Continuity
 
-**Last command:** /gsd:execute-phase 08-01
+**Last command:** /gsd:execute-phase 08-02
 
 **Last session:** 2026-02-03
 
-**Stopped at:** Completed 08-01-PLAN.md (Zod Tool Schemas)
+**Stopped at:** Completed 08-02-PLAN.md (Tool Execution Handlers)
 
 **Resume file:** None
 
-**Next step:** Run `/gsd:execute-phase 08-02` for Tool Execution Handlers
+**Next step:** Run `/gsd:execute-phase 08-03` for Integration Tests
 
 ---
 
 *Last updated: 2026-02-03*
-*Phase 8 Plan 01 complete: Zod tool schemas with German descriptions, TypeScript types, Gemini converter*
+*Phase 8 Plan 02 complete: tariff_lookup and tax_calculate tools with ToolExecutor validation and retry logic*
