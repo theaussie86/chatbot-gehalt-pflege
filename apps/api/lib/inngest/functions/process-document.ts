@@ -45,6 +45,7 @@ function extractEmbeddingValues(embedResult: any): number[] | null {
 
 /**
  * Get extraction prompt customized for file type.
+ * For PDFs, requests page markers to enable citation quality.
  */
 function getExtractionPrompt(mimeType: string): string {
   if (
@@ -58,9 +59,194 @@ Preserve headers and data structure.
 Return only the extracted content, no explanations.`;
   }
 
+  // For PDFs, request page markers for citation tracking
+  if (mimeType === "application/pdf") {
+    return `Extract all the text from this PDF document.
+IMPORTANT: Prefix each page's content with [PAGE:N] where N is the page number.
+Start with [PAGE:1] for the first page, [PAGE:2] for the second, and so on.
+Return only the text content with page markers.
+Do not include any markdown formatting or introductory text, just the raw content with page markers.
+
+Example format:
+[PAGE:1]
+Content from page 1...
+[PAGE:2]
+Content from page 2...`;
+  }
+
+  // For non-PDF documents (plain text, markdown), no page markers
   return `Extract all the text from this document.
 Return only the text content.
 Do not include any markdown formatting or introductory text, just the raw content.`;
+}
+
+// --- Page Marker Parsing ---
+
+/**
+ * Represents content from a single page with its page number.
+ */
+interface PagedContent {
+  pageNumber: number | null;
+  content: string;
+}
+
+/**
+ * Parse [PAGE:N] markers from extracted text.
+ * Returns array of page content objects.
+ * If no markers found, returns single entry with pageNumber: null.
+ */
+function parsePageMarkers(text: string): PagedContent[] {
+  // Regex to match [PAGE:N] markers and capture following content
+  const pageMarkerRegex = /\[PAGE:(\d+)\]/g;
+
+  const pages: PagedContent[] = [];
+  let lastIndex = 0;
+  let lastPageNumber: number | null = null;
+  let match: RegExpExecArray | null;
+
+  // Find all page markers
+  const matches: { pageNumber: number; index: number }[] = [];
+  while ((match = pageMarkerRegex.exec(text)) !== null) {
+    matches.push({
+      pageNumber: parseInt(match[1], 10),
+      index: match.index,
+    });
+  }
+
+  // If no markers found, return single entry with null page
+  if (matches.length === 0) {
+    return [{ pageNumber: null, content: text.trim() }];
+  }
+
+  // Check for content before first marker
+  if (matches[0].index > 0) {
+    const beforeContent = text.substring(0, matches[0].index).trim();
+    if (beforeContent.length > 0) {
+      pages.push({ pageNumber: null, content: beforeContent });
+    }
+  }
+
+  // Extract content between markers
+  for (let i = 0; i < matches.length; i++) {
+    const currentMatch = matches[i];
+    const markerEndIndex = currentMatch.index + `[PAGE:${currentMatch.pageNumber}]`.length;
+
+    // Content ends at next marker or end of string
+    const contentEndIndex = i + 1 < matches.length ? matches[i + 1].index : text.length;
+    const content = text.substring(markerEndIndex, contentEndIndex).trim();
+
+    if (content.length > 0) {
+      pages.push({
+        pageNumber: currentMatch.pageNumber,
+        content,
+      });
+    }
+  }
+
+  return pages;
+}
+
+/**
+ * Represents a text chunk with page boundary information.
+ */
+interface PagedChunk {
+  content: string;
+  pageStart: number | null;
+  pageEnd: number | null;
+}
+
+/**
+ * Split text into chunks while tracking page boundaries.
+ * Uses RecursiveCharacterTextSplitter internally but preserves page info.
+ */
+async function splitTextWithPageTracking(
+  pagedContent: PagedContent[],
+  chunkSize: number = 2000,
+  chunkOverlap: number = 100
+): Promise<PagedChunk[]> {
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize,
+    chunkOverlap,
+    separators: ["\n\n", "\n", ". ", ", ", " ", ""],
+  });
+
+  const pagedChunks: PagedChunk[] = [];
+
+  // If we have page data, process page by page and track boundaries
+  const hasPageData = pagedContent.some(p => p.pageNumber !== null);
+
+  if (!hasPageData) {
+    // No page markers - split normally without page tracking
+    const fullText = pagedContent.map(p => p.content).join("\n\n");
+    const chunks = await splitter.splitText(fullText);
+    return chunks.map(content => ({
+      content,
+      pageStart: null,
+      pageEnd: null,
+    }));
+  }
+
+  // Build a map of character positions to page numbers
+  let fullText = "";
+  const positionToPage: { start: number; end: number; page: number | null }[] = [];
+
+  for (const page of pagedContent) {
+    const start = fullText.length;
+    fullText += page.content + "\n\n";
+    const end = fullText.length;
+    positionToPage.push({ start, end, page: page.pageNumber });
+  }
+
+  // Split the full text
+  const chunks = await splitter.splitText(fullText);
+
+  // For each chunk, determine which pages it spans
+  let searchStart = 0;
+  for (const chunkContent of chunks) {
+    // Find chunk position in full text (search from last position for efficiency)
+    const chunkStart = fullText.indexOf(chunkContent, searchStart);
+    if (chunkStart === -1) {
+      // Fallback: chunk may have been modified, search from beginning
+      const fallbackStart = fullText.indexOf(chunkContent);
+      if (fallbackStart === -1) {
+        // Can't find chunk - add without page info
+        pagedChunks.push({
+          content: chunkContent,
+          pageStart: null,
+          pageEnd: null,
+        });
+        continue;
+      }
+    }
+
+    const actualStart = chunkStart !== -1 ? chunkStart : fullText.indexOf(chunkContent);
+    const chunkEnd = actualStart + chunkContent.length;
+    searchStart = actualStart; // Start next search from here
+
+    // Find pages that this chunk spans
+    let pageStart: number | null = null;
+    let pageEnd: number | null = null;
+
+    for (const pos of positionToPage) {
+      // Check if chunk overlaps with this page's content
+      if (actualStart < pos.end && chunkEnd > pos.start) {
+        if (pos.page !== null) {
+          if (pageStart === null) {
+            pageStart = pos.page;
+          }
+          pageEnd = pos.page;
+        }
+      }
+    }
+
+    pagedChunks.push({
+      content: chunkContent,
+      pageStart,
+      pageEnd: pageEnd !== pageStart ? pageEnd : pageStart, // Same as start if single page
+    });
+  }
+
+  return pagedChunks;
 }
 
 function getSupabaseClient() {
@@ -177,8 +363,8 @@ export const processDocument = inngest.createFunction(
         return text;
       });
 
-      // Step 3: Chunk text
-      const chunks = await step.run("chunk-text", async () => {
+      // Step 3: Parse page markers and chunk text with page tracking
+      const pagedChunks = await step.run("chunk-text", async () => {
         const supabase = getSupabaseClient();
 
         await supabase
@@ -186,14 +372,14 @@ export const processDocument = inngest.createFunction(
           .update({ processing_stage: "chunking text" })
           .eq("id", documentId);
 
-        const splitter = new RecursiveCharacterTextSplitter({
-          chunkSize: 2000,
-          chunkOverlap: 100,
-          separators: ["\n\n", "\n", ". ", ", ", " ", ""],
-        });
+        // Parse page markers from extracted text
+        const pagedContent = parsePageMarkers(textContent);
+        const hasPageMarkers = pagedContent.some(p => p.pageNumber !== null);
+        console.log(`Parsed ${pagedContent.length} page sections, hasPageMarkers: ${hasPageMarkers}`);
 
-        const result = await splitter.splitText(textContent);
-        console.log(`Generated ${result.length} chunks`);
+        // Split text into chunks while tracking page boundaries
+        const result = await splitTextWithPageTracking(pagedContent, 2000, 100);
+        console.log(`Generated ${result.length} chunks with page tracking`);
 
         if (result.length === 0) {
           throw new Error("Document produced no chunks after splitting");
@@ -202,7 +388,7 @@ export const processDocument = inngest.createFunction(
         return result;
       });
 
-      // Step 4: Generate embeddings
+      // Step 4: Generate embeddings with page data
       const chunkDataArray = await step.run("generate-embeddings", async () => {
         const supabase = getSupabaseClient();
         const genAI = getGeminiClient();
@@ -221,20 +407,22 @@ export const processDocument = inngest.createFunction(
           content: string;
           embedding: number[];
           token_count: number;
+          page_start: number | null;
+          page_end: number | null;
         }[] = [];
 
         const BATCH_SIZE = 10;
 
-        for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-          const batch = chunks.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < pagedChunks.length; i += BATCH_SIZE) {
+          const batch = pagedChunks.slice(i, i + BATCH_SIZE);
 
-          const batchPromises = batch.map(async (chunkText, batchIndex) => {
+          const batchPromises = batch.map(async (chunk, batchIndex) => {
             const absoluteIndex = i + batchIndex;
-            console.log(`Embedding chunk ${absoluteIndex + 1}/${chunks.length}`);
+            console.log(`Embedding chunk ${absoluteIndex + 1}/${pagedChunks.length}`);
 
             const embedResult = await genAI.models.embedContent({
               model: GEMINI_MODEL_EMBED,
-              contents: chunkText,
+              contents: chunk.content,
             });
 
             const values = extractEmbeddingValues(embedResult);
@@ -247,9 +435,11 @@ export const processDocument = inngest.createFunction(
             return {
               document_id: documentId,
               chunk_index: absoluteIndex,
-              content: chunkText,
+              content: chunk.content,
               embedding: values,
-              token_count: Math.ceil(chunkText.length / 4),
+              token_count: Math.ceil(chunk.content.length / 4),
+              page_start: chunk.pageStart,
+              page_end: chunk.pageEnd,
             };
           });
 
@@ -269,7 +459,7 @@ export const processDocument = inngest.createFunction(
         return results;
       });
 
-      // Step 5: Insert chunks and finalize
+      // Step 5: Insert chunks and finalize with page data flag
       await step.run("insert-chunks", async () => {
         const supabase = getSupabaseClient();
 
@@ -288,18 +478,25 @@ export const processDocument = inngest.createFunction(
           }
         }
 
-        // Update final status
+        // Determine if page extraction succeeded
+        // has_page_data = true if any chunk has page data, false otherwise
+        const hasPageData = chunkDataArray.some(
+          chunk => chunk.page_start !== null || chunk.page_end !== null
+        );
+
+        // Update final status with has_page_data flag
         await supabase
           .from("documents")
           .update({
             status: "embedded",
             chunk_count: chunkDataArray.length,
             processing_stage: null,
+            has_page_data: hasPageData,
           })
           .eq("id", documentId);
 
         console.log(
-          `Document ${documentId} processed successfully with ${chunkDataArray.length} chunks`
+          `Document ${documentId} processed successfully with ${chunkDataArray.length} chunks, has_page_data: ${hasPageData}`
         );
       });
 
