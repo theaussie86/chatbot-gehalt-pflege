@@ -7,6 +7,7 @@ import { ConversationAnalyzer, type IntentAnalysis } from "../../../utils/agent/
 import { ResponseValidator, type ValidationResult } from "../../../utils/agent/ResponseValidator";
 import { VectorstoreService } from "../../../lib/vectorstore/VectorstoreService";
 import { TaxWrapper, type SalaryInput } from "../../../utils/tax";
+import { generateSuggestions } from "../../../lib/suggestions";
 
 // Lazy Initialize Supabase Admin Client
 let supabaseAdminInstance: SupabaseClient | null = null;
@@ -194,7 +195,8 @@ export async function POST(request: Request) {
 
                 return NextResponse.json({
                     text: responseText,
-                    formState: nextFormState
+                    formState: nextFormState,
+                    suggestions: await generateSuggestions(nextFormState, responseText)
                 });
             }
 
@@ -277,7 +279,8 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
 
                 return NextResponse.json({
                     text: responseText,
-                    formState: nextFormState
+                    formState: nextFormState,
+                    suggestions: await generateSuggestions(nextFormState, responseText)
                 });
             }
 
@@ -297,7 +300,8 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                     });
                     return NextResponse.json({
                         text: responseResult.text || '',
-                        formState: nextFormState
+                        formState: nextFormState,
+                        suggestions: await generateSuggestions(nextFormState, responseResult.text || '')
                     });
                 }
 
@@ -394,7 +398,8 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                     return NextResponse.json({
                         text: formattedResult + '\n\n[PROGRESS: 100]',
                         formState: nextFormState,
-                        inquiryId: saveResult.data?.id || null
+                        inquiryId: saveResult.data?.id || null,
+                        suggestions: await generateSuggestions(nextFormState, formattedResult)
                     });
 
                 } catch (calcError) {
@@ -412,7 +417,8 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                     });
                     return NextResponse.json({
                         text: responseResult.text || '',
-                        formState: nextFormState
+                        formState: nextFormState,
+                        suggestions: await generateSuggestions(nextFormState, responseResult.text || '')
                     });
                 }
             }
@@ -480,7 +486,8 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
 
                             return NextResponse.json({
                                 text: summaryResponse,
-                                formState: nextFormState
+                                formState: nextFormState,
+                                suggestions: await generateSuggestions(nextFormState, summaryResponse)
                             });
                         } else {
                             // Validation failed
@@ -506,9 +513,11 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                     model: 'gemini-2.5-flash',
                     contents: clarifyPrompt
                 });
+                const clarifyText = (responseResult.text || '') + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
                 return NextResponse.json({
-                    text: (responseResult.text || '') + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`,
-                    formState: nextFormState
+                    text: clarifyText,
+                    formState: nextFormState,
+                    suggestions: await generateSuggestions(nextFormState, clarifyText)
                 });
             }
 
@@ -603,9 +612,11 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                     model: 'gemini-2.5-flash',
                     contents: clarifyPrompt
                 });
+                const validationErrorText = (responseResult.text || '') + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
                 return NextResponse.json({
-                    text: (responseResult.text || '') + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`,
-                    formState: nextFormState
+                    text: validationErrorText,
+                    formState: nextFormState,
+                    suggestions: await generateSuggestions(nextFormState, validationErrorText)
                 });
             }
 
@@ -626,7 +637,8 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
 
                 return NextResponse.json({
                     text: summaryResponse,
-                    formState: nextFormState
+                    formState: nextFormState,
+                    suggestions: await generateSuggestions(nextFormState, summaryResponse)
                 });
             }
 
@@ -655,7 +667,8 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
 
             return NextResponse.json({
                 text: responseText,
-                formState: nextFormState
+                formState: nextFormState,
+                suggestions: await generateSuggestions(nextFormState, responseText)
             });
         }
 
