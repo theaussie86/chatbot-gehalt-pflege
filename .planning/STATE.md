@@ -2,9 +2,9 @@
 
 **Project:** Gehalt-Pflege Document Pipeline
 **Current Milestone:** v1.1 Chat Intelligence
-**Current Phase:** Phase 8 of 11 (Function Calling Enhancement)
-**Current Plan:** —
-**Status:** Phase complete
+**Current Phase:** Phase 11 of 11 (Citation Quality Enhancement)
+**Current Plan:** 01
+**Status:** In progress
 
 ## Project Reference
 
@@ -18,19 +18,19 @@
 
 **Milestone:** v1.1 Chat Intelligence (Phases 7-11)
 
-Phase: 10 of 11 (Validation Improvements) — COMPLETE ✅
-Plan: 02 of 02 — COMPLETE ✅
-Status: Phase complete, verified ✅
-Last activity: 2026-02-03 — Verification passed (3/3 must-haves)
+Phase: 11 of 11 (Citation Quality Enhancement) — IN PROGRESS
+Plan: 01 of 02 — COMPLETE ✅
+Status: Plan 11-01 complete
+Last activity: 2026-02-03 — Completed 11-01-PLAN.md (page data schema and extraction)
 
-Progress: [██████████████████░░] 92% (23/25 plans across all milestones)
+Progress: [███████████████████░] 96% (24/25 plans across all milestones)
 
 ## Performance Metrics
 
 **Velocity (v1.0 baseline):**
-- Total plans completed: 19
+- Total plans completed: 24
 - Milestone v1.0: 6 phases, 14 plans
-- Milestone v1.1: Phase 7 complete (3 plans), Phase 8 complete (2 plans)
+- Milestone v1.1: Phase 7 complete (3 plans), Phase 8 complete (2 plans), Phase 9 complete (2 plans), Phase 10 complete (2 plans), Phase 11 in progress (1/2 plans)
 - Average duration: Data from v1.0 execution
 - Total execution time: Data from v1.0 execution
 
@@ -51,7 +51,7 @@ Progress: [██████████████████░░] 92% (23
 - Phase 8 complete ✅ (2/2 plans)
 - Phase 9 complete ✅ (2/2 plans)
 - Phase 10 complete ✅ (2/2 plans)
-- Phase 11: Not started
+- Phase 11 in progress (1/2 plans)
 
 *Updated after each plan completion*
 
@@ -123,6 +123,11 @@ Full decision log in PROJECT.md Key Decisions table.
 - Use activeProjectId for validation session tracking with 30-min TTL
 - Re-prompt only for first validation error when multiple fields fail (avoid overwhelming user)
 
+**Phase 11 decisions:**
+- [PAGE:N] markers in Gemini extraction prompt for page tracking
+- Track page boundaries during chunking (not post-hoc)
+- Tri-state has_page_data flag (null/true/false) for backward compatibility
+
 ### Pending Todos
 
 **Phase 7 (User Setup Required):**
@@ -131,6 +136,9 @@ Full decision log in PROJECT.md Key Decisions table.
   - Add RLS policy for authenticated read access
   - Create Resend account and API key
   - Configure sender domain for production (optional)
+
+**Phase 11 (User Setup Required):**
+- User must apply migration 20260203000000_add_page_data_to_chunks.sql to database
 
 ### Blockers/Concerns
 
@@ -146,8 +154,8 @@ Phase 9 addressed:
 Phase 10 addressed:
 - ✅ P1-3: Data extraction relies solely on LLM (two-phase validation with FieldValidator)
 
-Phase 11 must address:
-- P0-3: RAG citation hallucination (store page metadata, don't generate)
+Phase 11 addressing:
+- P0-3: RAG citation hallucination (store page metadata, don't generate) — Plan 01 complete, Plan 02 pending
 
 ### Open Questions
 
@@ -159,17 +167,17 @@ Phase 11 must address:
 
 ## Session Continuity
 
-**Last command:** /gsd:execute-phase 10
+**Last command:** /gsd:execute-plan 11-01
 
 **Last session:** 2026-02-03
 
-**Stopped at:** Phase 10 verified ✅ (3/3 must-haves passed). Two-phase validation with FieldValidator, German error re-prompts, escalation chips.
+**Stopped at:** Plan 11-01 complete. Page data schema and extraction implemented.
 
 **Resume file:** None
 
-**Next step:** Run `/gsd:discuss-phase 11` or `/gsd:plan-phase 11` for Citation Quality Enhancement
+**Next step:** Execute plan 11-02 for admin citation display
 
 ---
 
 *Last updated: 2026-02-03*
-*Phase 10 complete: Two-phase validation with FieldValidator, German error re-prompts, escalation chips after 3 failures*
+*Plan 11-01 complete: Page data schema (page_start, page_end, has_page_data) and page-aware document processing*
