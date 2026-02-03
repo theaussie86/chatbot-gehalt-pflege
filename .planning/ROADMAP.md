@@ -128,10 +128,11 @@ Plans:
   1. Data extraction uses two-phase validation (LLM extracts -> Zod schema validates before accepting)
   2. Validation errors display user-friendly German messages (e.g., "Steuerklasse muss zwischen 1 und 6 liegen")
   3. When validation fails, AI re-prompts user with specific correction request referencing the error
-**Plans:** TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 10-01: TBD
+- [ ] 10-01-PLAN.md -- Zod form field schemas with German pre-processors and friendly error messages
+- [ ] 10-02-PLAN.md -- Chat route integration with two-phase validation and escalation chips
 
 ### Phase 11: Citation Quality Enhancement
 **Goal:** RAG responses include document name and page number for trust
@@ -166,10 +167,10 @@ Phases execute in numeric order: 7 -> 8 -> 9 -> 10 -> 11
 | 7. Conversation Persistence | v1.1 | 3/3 | Complete | 2026-01-27 |
 | 8. Function Calling Enhancement | v1.1 | 2/2 | Complete | 2026-02-03 |
 | 9. Suggested Response Chips | v1.1 | 2/2 | Complete | 2026-02-03 |
-| 10. Validation Improvements | v1.1 | 0/TBD | Not started | - |
+| 10. Validation Improvements | v1.1 | 0/2 | Planned | - |
 | 11. Citation Quality Enhancement | v1.1 | 0/TBD | Not started | - |
 
 ---
 
 *Roadmap created: 2026-01-26*
-*Last updated: 2026-02-03 (Phase 9 complete)*
+*Last updated: 2026-02-03 (Phase 10 planned - 2 plans in 2 waves)*
