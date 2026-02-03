@@ -66,96 +66,22 @@ Plans:
 
 </details>
 
-## ✅ v1.1 Chat Intelligence (Complete)
+<details>
+<summary>✅ v1.1 Chat Intelligence (Phases 7-11) - SHIPPED 2026-02-03</summary>
 
 **Milestone Goal:** Enhance chatbot with conversation persistence, intelligent tool calling, suggested responses, validation improvements, and citation quality.
 
-### Phase 7: Conversation Persistence ✅
-**Goal:** Users can resume conversations across sessions, admins gain visibility into inquiry data
-**Depends on:** Phase 6 (RAG Integration)
-**Requirements:** CONV-01, CONV-02, CONV-03, CONV-04, CONV-05, CONV-06
-**Success Criteria** (what must be TRUE):
-  1. ✅ User reloads page and sees full conversation history within 1 second
-  2. ✅ User closes browser, reopens days later, and conversation resumes automatically from last state
-  3. ✅ Admin views structured salary inquiry data (job details, tax details, result) in dashboard
-  4. ✅ Admin sees user email associated with each salary inquiry
-  5. ✅ User sees visual progress indicator showing collected fields during conversation
-  6. ✅ User exports conversation/result to email and receives formatted summary
-**Plans:** 3 plans complete
+- [x] Phase 7: Conversation Persistence (3/3 plans) — completed 2026-01-27
+- [x] Phase 8: Function Calling Enhancement (2/2 plans) — completed 2026-02-03
+- [x] Phase 9: Suggested Response Chips (2/2 plans) — completed 2026-02-03
+- [x] Phase 10: Validation Improvements (2/2 plans) — completed 2026-02-03
+- [x] Phase 11: Citation Quality Enhancement (2/2 plans) — completed 2026-02-03
 
-Plans:
-- [x] 07-01-PLAN.md -- Client-side conversation persistence and step progress indicator
-- [x] 07-02-PLAN.md -- Admin inquiry dashboard with structured data and filters
-- [x] 07-03-PLAN.md -- Email export with DOI consent and formatted result email
+**Archive:** See `.planning/milestones/v1.1-ROADMAP.md` for full details.
 
-### Phase 8: Function Calling Enhancement ✅
-**Goal:** AI reliably executes tax calculations and tariff lookups via structured tool calls
-**Depends on:** Phase 6 (RAG Integration)
-**Requirements:** FUNC-01, FUNC-02, FUNC-03, FUNC-04, FUNC-05
-**Success Criteria** (what must be TRUE):
-  1. ✅ AI calls tax calculation tool with validated parameters (gross salary, tax class, church tax, children)
-  2. ✅ AI calls tariff lookup tool and retrieves accurate salary grades for TVöD, TV-L, AVR by experience level
-  3. ✅ When tool validation fails, AI receives error message and retries with corrected parameters (max 3 attempts)
-  4. ✅ AI executes multiple tools in single turn when appropriate (e.g., tariff lookup then tax calculation)
-  5. ✅ Tool execution results inform AI's suggested response generation
-**Plans:** 2 plans complete
-
-Plans:
-- [x] 08-01-PLAN.md -- Zod tool schema foundation (single source of truth for validation and Gemini tools)
-- [x] 08-02-PLAN.md -- Tool implementation with tariff lookup, tax calculation, and retry orchestration
-
-### Phase 9: Suggested Response Chips ✅
-**Goal:** Users tap quick reply options instead of typing on mobile
-**Depends on:** Phase 7 (Conversation Persistence - needs context for suggestions)
-**Requirements:** CHIP-01, CHIP-02, CHIP-03, CHIP-04, CHIP-05
-**Success Criteria** (what must be TRUE):
-  1. ✅ AI generates 2-4 contextual quick reply chips above the input field
-  2. ✅ User taps chip and text fills input field (can edit before sending)
-  3. ✅ Chips have touch-friendly sizing (min 44x44px tap target) on mobile devices
-  4. ✅ Suggestions adapt to state machine stage (tariff options in job_details, yes/no in confirmation)
-  5. ✅ Chips display common values for known fields (Steuerklasse 1-6, TVöD/TV-L/AVR)
-**Plans:** 2 plans complete
-
-Plans:
-- [x] 09-01-PLAN.md -- Backend suggestion generation based on formState stage
-- [x] 09-02-PLAN.md -- SuggestionChips component with tap-to-fill behavior
-
-### Phase 10: Validation Improvements ✅
-**Goal:** Data extraction is reliable with user-friendly German error messages
-**Depends on:** Phase 8 (Function Calling Enhancement - validation applies to tool parameters)
-**Requirements:** VALD-01, VALD-02, VALD-05
-**Success Criteria** (what must be TRUE):
-  1. ✅ Data extraction uses two-phase validation (LLM extracts -> Zod schema validates before accepting)
-  2. ✅ Validation errors display user-friendly German messages (e.g., "Steuerklasse muss zwischen 1 und 6 liegen")
-  3. ✅ When validation fails, AI re-prompts user with specific correction request referencing the error
-**Plans:** 2 plans complete
-
-Plans:
-- [x] 10-01-PLAN.md -- Zod form field schemas with German pre-processors and friendly error messages
-- [x] 10-02-PLAN.md -- Chat route integration with two-phase validation and escalation chips
-
-### Phase 11: Citation Quality Enhancement ✅
-**Goal:** Admin sees document name and page numbers for RAG-sourced answers (users see clean responses)
-**Depends on:** Phase 6 (RAG Integration - enhances existing citations)
-**Requirements:** VALD-03, VALD-04
-**Success Criteria** (what must be TRUE):
-  1. ✅ Admin sees document name and page number in inquiry detail view (e.g., "TVoD_2025.pdf, S. 12")
-  2. ✅ Users see NO source references in chat responses (admin-only citations)
-**Plans:** 2 plans complete
-
-Plans:
-- [x] 11-01-PLAN.md -- Schema and processing pipeline for page number extraction
-- [x] 11-02-PLAN.md -- Chat API citation storage and admin UI display
+</details>
 
 ## Progress
-
-**Execution Order:**
-Phases execute in numeric order: 7 -> 8 -> 9 -> 10 -> 11
-
-**Parallelization opportunities:**
-- Phase 7 and Phase 8 can run in parallel (independent components)
-- Phase 9 depends on Phase 7 (needs conversation context)
-- Phase 10 and Phase 11 can run in parallel after Phase 8 complete
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -174,4 +100,4 @@ Phases execute in numeric order: 7 -> 8 -> 9 -> 10 -> 11
 ---
 
 *Roadmap created: 2026-01-26*
-*Last updated: 2026-02-03 (Phase 11 complete - v1.1 milestone shipped)*
+*Last updated: 2026-02-03 (v1.1 milestone archived)*
