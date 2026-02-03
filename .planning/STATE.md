@@ -3,8 +3,8 @@
 **Project:** Gehalt-Pflege Document Pipeline
 **Current Milestone:** v1.1 Chat Intelligence
 **Current Phase:** Phase 8 of 11 (Function Calling Enhancement)
-**Current Plan:** —
-**Status:** Ready to plan
+**Current Plan:** 01 of 03
+**Status:** In progress
 
 ## Project Reference
 
@@ -19,18 +19,18 @@
 **Milestone:** v1.1 Chat Intelligence (Phases 7-11)
 
 Phase: 8 of 11 (Function Calling Enhancement)
-Plan: — (phase planning not started)
-Status: Ready to plan
-Last activity: 2026-01-27 — Phase 7 complete, verified ✅
+Plan: 01 of 03 (Zod Tool Schemas)
+Status: Plan 01 complete
+Last activity: 2026-02-03 — Completed 08-01-PLAN.md
 
-Progress: [██████████████░░░░░░] 68% (17/25 plans across all milestones)
+Progress: [██████████████░░░░░░] 72% (18/25 plans across all milestones)
 
 ## Performance Metrics
 
 **Velocity (v1.0 baseline):**
-- Total plans completed: 17
+- Total plans completed: 18
 - Milestone v1.0: 6 phases, 14 plans
-- Milestone v1.1: Phase 7 complete (3 plans)
+- Milestone v1.1: Phase 7 complete (3 plans), Phase 8 in progress (1/3 plans)
 - Average duration: Data from v1.0 execution
 - Total execution time: Data from v1.0 execution
 
@@ -47,8 +47,9 @@ Progress: [██████████████░░░░░░] 68% (17
 
 **v1.1 Progress:**
 - Phases planned: 5 (Phases 7-11)
-- Phase 7 complete ✅ (3/3 plans)
-- Phase 8-11: Not started
+- Phase 7 complete (3/3 plans)
+- Phase 8 in progress (1/3 plans)
+- Phase 9-11: Not started
 
 *Updated after each plan completion*
 
@@ -86,6 +87,12 @@ Full decision log in PROJECT.md Key Decisions table.
 - Email export rate limit: 5 per IP per 60 seconds
 - Graceful degradation if inquiryId is null
 
+**Phase 8 decisions (08-01):**
+- Zod schemas as single source of truth for tool validation and Gemini function declarations
+- Literal unions for taxClass (1-6) for strict validation
+- German .describe() annotations for AI context
+- z.infer<typeof schema> for TypeScript type inference
+
 ### Pending Todos
 
 **Phase 7 (User Setup Required):**
@@ -100,7 +107,7 @@ Full decision log in PROJECT.md Key Decisions table.
 **From research (to address during phases):**
 
 Phase 8 must address:
-- P0-2: Function calling schema drift (single source of truth, Zod validation)
+- P0-2: Function calling schema drift (single source of truth, Zod validation) - ADDRESSED in 08-01
 
 Phase 9 must address:
 - P1-1: Suggested response overload (3-4 chips max, multiple-choice only)
@@ -122,17 +129,17 @@ Phase 11 must address:
 
 ## Session Continuity
 
-**Last command:** Phase 7 execution complete
+**Last command:** /gsd:execute-phase 08-01
 
-**Last session:** 2026-01-27
+**Last session:** 2026-02-03
 
-**Stopped at:** Phase 7 verified ✅ (6/6 must-haves passed). ROADMAP.md and REQUIREMENTS.md updated.
+**Stopped at:** Completed 08-01-PLAN.md (Zod Tool Schemas)
 
 **Resume file:** None
 
-**Next step:** Run `/gsd:discuss-phase 8` or `/gsd:plan-phase 8` for Function Calling Enhancement
+**Next step:** Run `/gsd:execute-phase 08-02` for Tool Execution Handlers
 
 ---
 
-*Last updated: 2026-01-27*
-*Phase 7 complete: Conversation persistence, admin dashboard, email export with DOI consent*
+*Last updated: 2026-02-03*
+*Phase 8 Plan 01 complete: Zod tool schemas with German descriptions, TypeScript types, Gemini converter*
