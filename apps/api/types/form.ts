@@ -38,3 +38,14 @@ export interface FormState {
   userIntent?: UserIntent;
   validationErrors?: Record<string, string>;
 }
+
+/**
+ * Chat API response structure.
+ * Returned by /api/chat endpoint.
+ */
+export interface ChatResponse {
+  text: string;
+  formState?: FormState;
+  inquiryId?: string;
+  suggestions?: string[]; // Quick reply chip labels (Phase 09)
+}
