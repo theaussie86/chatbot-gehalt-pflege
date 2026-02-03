@@ -98,11 +98,11 @@ Plans:
   3. When tool validation fails, AI receives error message and retries with corrected parameters (max 3 attempts)
   4. AI executes multiple tools in single turn when appropriate (e.g., tariff lookup then tax calculation)
   5. Tool execution results inform AI's suggested response generation
-**Plans:** TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 08-01: TBD
-- [ ] 08-02: TBD
+- [ ] 08-01-PLAN.md -- Zod tool schema foundation (single source of truth for validation and Gemini tools)
+- [ ] 08-02-PLAN.md -- Tool implementation with tariff lookup, tax calculation, and retry orchestration
 
 ### Phase 9: Suggested Response Chips
 **Goal:** Users tap quick reply options instead of typing on mobile
@@ -164,7 +164,7 @@ Phases execute in numeric order: 7 -> 8 -> 9 -> 10 -> 11
 | 5. Error Recovery | v1.0 | 1/1 | Complete | 2026-01-25 |
 | 6. RAG Integration | v1.0 | 2/2 | Complete | 2026-01-25 |
 | 7. Conversation Persistence | v1.1 | 3/3 | Complete | 2026-01-27 |
-| 8. Function Calling Enhancement | v1.1 | 0/TBD | Not started | - |
+| 8. Function Calling Enhancement | v1.1 | 0/2 | Planning complete | - |
 | 9. Suggested Response Chips | v1.1 | 0/TBD | Not started | - |
 | 10. Validation Improvements | v1.1 | 0/TBD | Not started | - |
 | 11. Citation Quality Enhancement | v1.1 | 0/TBD | Not started | - |
