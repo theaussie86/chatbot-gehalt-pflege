@@ -225,6 +225,8 @@ export class VectorstoreService {
       documentId: string;
       filename: string;
       chunkIndex: number;
+      pageStart: number | null;
+      pageEnd: number | null;
     }
   }>> {
     try {
@@ -248,14 +250,16 @@ export class VectorstoreService {
         return [];
       }
 
-      // 3. Format results with metadata
+      // 3. Format results with metadata including page data
       return results.map((r: any) => ({
         content: r.content,
         similarity: r.similarity,
         metadata: {
           documentId: r.document_id,
           filename: r.filename,
-          chunkIndex: r.chunk_index
+          chunkIndex: r.chunk_index,
+          pageStart: r.page_start ?? null,
+          pageEnd: r.page_end ?? null
         }
       }));
 
@@ -339,4 +343,18 @@ export class VectorstoreService {
       entries: Array.from(this.cache.keys())
     };
   }
+}
+
+/**
+ * Format page range for German locale display
+ * @param pageStart Start page number (can be null)
+ * @param pageEnd End page number (can be null)
+ * @returns Formatted string like "S. 5" or "S. 5-7" or null if no page data
+ */
+export function formatPageRange(pageStart: number | null, pageEnd: number | null): string | null {
+  if (pageStart === null) return null;
+  if (pageEnd === null || pageEnd === pageStart) {
+    return `S. ${pageStart}`;
+  }
+  return `S. ${pageStart}-${pageEnd}`;
 }
