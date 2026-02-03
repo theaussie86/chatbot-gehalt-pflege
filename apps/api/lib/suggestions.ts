@@ -28,16 +28,69 @@ const PREDEFINED_CHIPS: Record<string, string[]> = {
 const FREEFORM_FIELDS = ['group']; // Job title/position requires typing
 
 /**
+ * Generate escalation chips when validation fails repeatedly
+ * Called after 3 validation attempts to help user select valid option
+ */
+export function generateEscalationChips(
+  field: string,
+  validOptions: string[]
+): string[] {
+  // Return user-friendly chip labels
+  // Map internal values to German display labels
+  const fieldLabels: Record<string, Record<string, string>> = {
+    tarif: {
+      'tvoed': 'TVöD (öffentlicher Dienst)',
+      'tv-l': 'TV-L (Länder)',
+      'avr': 'AVR (kirchlich)',
+    },
+    taxClass: {
+      '1': 'Klasse 1 (ledig)',
+      '2': 'Klasse 2 (alleinerziehend)',
+      '3': 'Klasse 3 (verheiratet, höher)',
+      '4': 'Klasse 4 (verheiratet, gleich)',
+      '5': 'Klasse 5 (verheiratet, niedriger)',
+      '6': 'Klasse 6 (Zweitjob)',
+    },
+    churchTax: {
+      'true': 'Ja, Kirchenmitglied',
+      'false': 'Nein, keine Kirchensteuer',
+    },
+    numberOfChildren: {
+      '0': 'Keine Kinder',
+      '1': '1 Kind',
+      '2': '2 Kinder',
+      '3': '3+ Kinder',
+    },
+    // For other fields, use valid options directly
+  };
+
+  const labels = fieldLabels[field];
+  if (labels) {
+    return validOptions.map(opt => labels[opt] || opt).slice(0, 4);
+  }
+
+  // Return raw options for fields without custom labels (max 4)
+  return validOptions.slice(0, 4);
+}
+
+/**
  * Generate contextual suggestion chips based on current conversation state.
  *
  * @param formState - Current form state with section and missing fields
  * @param lastBotMessage - Optional last bot message for context
+ * @param escalationChips - Optional override with validation escalation chips
  * @returns Array of 0-4 suggestion chip labels
  */
 export async function generateSuggestions(
   formState: FormState,
-  lastBotMessage?: string
+  lastBotMessage?: string,
+  escalationChips?: string[]
 ): Promise<string[]> {
+  // If escalation chips provided, return them immediately
+  if (escalationChips && escalationChips.length > 0) {
+    return escalationChips;
+  }
+
   // 1. If section is 'completed', return empty array
   if (formState.section === 'completed') {
     return [];
