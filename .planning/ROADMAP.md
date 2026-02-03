@@ -104,21 +104,21 @@ Plans:
 - [x] 08-01-PLAN.md -- Zod tool schema foundation (single source of truth for validation and Gemini tools)
 - [x] 08-02-PLAN.md -- Tool implementation with tariff lookup, tax calculation, and retry orchestration
 
-### Phase 9: Suggested Response Chips
+### Phase 9: Suggested Response Chips ✅
 **Goal:** Users tap quick reply options instead of typing on mobile
 **Depends on:** Phase 7 (Conversation Persistence - needs context for suggestions)
 **Requirements:** CHIP-01, CHIP-02, CHIP-03, CHIP-04, CHIP-05
 **Success Criteria** (what must be TRUE):
-  1. AI generates 2-4 contextual quick reply chips above the input field
-  2. User taps chip and text fills input field (can edit before sending)
-  3. Chips have touch-friendly sizing (min 44x44px tap target) on mobile devices
-  4. Suggestions adapt to state machine stage (tariff options in job_details, yes/no in confirmation)
-  5. Chips display common values for known fields (Steuerklasse 1-6, TVöD/TV-L/AVR)
-**Plans:** 2 plans
+  1. ✅ AI generates 2-4 contextual quick reply chips above the input field
+  2. ✅ User taps chip and text fills input field (can edit before sending)
+  3. ✅ Chips have touch-friendly sizing (min 44x44px tap target) on mobile devices
+  4. ✅ Suggestions adapt to state machine stage (tariff options in job_details, yes/no in confirmation)
+  5. ✅ Chips display common values for known fields (Steuerklasse 1-6, TVöD/TV-L/AVR)
+**Plans:** 2 plans complete
 
 Plans:
-- [ ] 09-01-PLAN.md -- Backend suggestion generation based on formState stage
-- [ ] 09-02-PLAN.md -- SuggestionChips component with tap-to-fill behavior
+- [x] 09-01-PLAN.md -- Backend suggestion generation based on formState stage
+- [x] 09-02-PLAN.md -- SuggestionChips component with tap-to-fill behavior
 
 ### Phase 10: Validation Improvements
 **Goal:** Data extraction is reliable with user-friendly German error messages
@@ -165,11 +165,11 @@ Phases execute in numeric order: 7 -> 8 -> 9 -> 10 -> 11
 | 6. RAG Integration | v1.0 | 2/2 | Complete | 2026-01-25 |
 | 7. Conversation Persistence | v1.1 | 3/3 | Complete | 2026-01-27 |
 | 8. Function Calling Enhancement | v1.1 | 2/2 | Complete | 2026-02-03 |
-| 9. Suggested Response Chips | v1.1 | 0/2 | Planned | - |
+| 9. Suggested Response Chips | v1.1 | 2/2 | Complete | 2026-02-03 |
 | 10. Validation Improvements | v1.1 | 0/TBD | Not started | - |
 | 11. Citation Quality Enhancement | v1.1 | 0/TBD | Not started | - |
 
 ---
 
 *Roadmap created: 2026-01-26*
-*Last updated: 2026-02-03*
+*Last updated: 2026-02-03 (Phase 9 complete)*

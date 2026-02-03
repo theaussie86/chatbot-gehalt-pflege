@@ -26,11 +26,11 @@ Requirements for Chat Intelligence milestone. Each maps to roadmap phases.
 
 ### Suggested Responses
 
-- [ ] **CHIP-01**: AI generates 2-4 quick reply chip options dynamically
-- [ ] **CHIP-02**: Chips are clickable and send the selected text as user message
-- [ ] **CHIP-03**: Chips have touch-friendly sizing for mobile devices
-- [ ] **CHIP-04**: Suggestions are context-aware based on current state machine stage
-- [ ] **CHIP-05**: Chips show common values for known fields (tax classes, tariff systems)
+- [x] **CHIP-01**: AI generates 2-4 quick reply chip options dynamically
+- [x] **CHIP-02**: Chips are clickable and send the selected text as user message
+- [x] **CHIP-03**: Chips have touch-friendly sizing for mobile devices
+- [x] **CHIP-04**: Suggestions are context-aware based on current state machine stage
+- [x] **CHIP-05**: Chips show common values for known fields (tax classes, tariff systems)
 
 ### Validation & Citation Quality
 
@@ -85,11 +85,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FUNC-03 | Phase 8 | Complete |
 | FUNC-04 | Phase 8 | Complete |
 | FUNC-05 | Phase 8 | Complete |
-| CHIP-01 | Phase 9 | Pending |
-| CHIP-02 | Phase 9 | Pending |
-| CHIP-03 | Phase 9 | Pending |
-| CHIP-04 | Phase 9 | Pending |
-| CHIP-05 | Phase 9 | Pending |
+| CHIP-01 | Phase 9 | Complete |
+| CHIP-02 | Phase 9 | Complete |
+| CHIP-03 | Phase 9 | Complete |
+| CHIP-04 | Phase 9 | Complete |
+| CHIP-05 | Phase 9 | Complete |
 | VALD-01 | Phase 10 | Pending |
 | VALD-02 | Phase 10 | Pending |
 | VALD-05 | Phase 10 | Pending |
@@ -110,4 +110,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-26*
-*Last updated: 2026-01-26 after roadmap creation*
+*Last updated: 2026-02-03 (Phase 9 CHIP requirements complete)*
