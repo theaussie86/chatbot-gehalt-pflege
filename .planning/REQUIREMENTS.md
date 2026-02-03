@@ -36,8 +36,8 @@ Requirements for Chat Intelligence milestone. Each maps to roadmap phases.
 
 - [x] **VALD-01**: Data extraction uses two-phase validation (LLM extraction → Zod schema validation)
 - [x] **VALD-02**: Validation errors display user-friendly German messages
-- [ ] **VALD-03**: RAG citations include document name in response
-- [ ] **VALD-04**: RAG citations include page number when available
+- [x] **VALD-03**: RAG citations include document name in response
+- [x] **VALD-04**: RAG citations include page number when available
 - [x] **VALD-05**: Validation errors guide AI to re-prompt user with specific correction request
 
 ## v1.2 Requirements
@@ -93,8 +93,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VALD-01 | Phase 10 | Complete |
 | VALD-02 | Phase 10 | Complete |
 | VALD-05 | Phase 10 | Complete |
-| VALD-03 | Phase 11 | Pending |
-| VALD-04 | Phase 11 | Pending |
+| VALD-03 | Phase 11 | Complete |
+| VALD-04 | Phase 11 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 21 total
@@ -110,4 +110,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-26*
-*Last updated: 2026-02-03 (Phase 10 VALD-01, VALD-02, VALD-05 complete)*
+*Last updated: 2026-02-03 (Phase 11 VALD-03, VALD-04 complete - v1.1 milestone shipped)*

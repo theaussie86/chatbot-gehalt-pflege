@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 Document Pipeline** - Phases 1-6 (shipped 2026-01-25)
-- 🚧 **v1.1 Chat Intelligence** - Phases 7-11 (in progress)
+- ✅ **v1.1 Chat Intelligence** - Phases 7-11 (shipped 2026-02-03)
 
 ## Overview
 
@@ -66,7 +66,7 @@ Plans:
 
 </details>
 
-## 🚧 v1.1 Chat Intelligence (In Progress)
+## ✅ v1.1 Chat Intelligence (Complete)
 
 **Milestone Goal:** Enhance chatbot with conversation persistence, intelligent tool calling, suggested responses, validation improvements, and citation quality.
 
@@ -134,18 +134,18 @@ Plans:
 - [x] 10-01-PLAN.md -- Zod form field schemas with German pre-processors and friendly error messages
 - [x] 10-02-PLAN.md -- Chat route integration with two-phase validation and escalation chips
 
-### Phase 11: Citation Quality Enhancement
+### Phase 11: Citation Quality Enhancement ✅
 **Goal:** Admin sees document name and page numbers for RAG-sourced answers (users see clean responses)
 **Depends on:** Phase 6 (RAG Integration - enhances existing citations)
 **Requirements:** VALD-03, VALD-04
 **Success Criteria** (what must be TRUE):
-  1. Admin sees document name and page number in inquiry detail view (e.g., "TVoD_2025.pdf, S. 12")
-  2. Users see NO source references in chat responses (admin-only citations)
-**Plans:** 2 plans
+  1. ✅ Admin sees document name and page number in inquiry detail view (e.g., "TVoD_2025.pdf, S. 12")
+  2. ✅ Users see NO source references in chat responses (admin-only citations)
+**Plans:** 2 plans complete
 
 Plans:
-- [ ] 11-01-PLAN.md -- Schema and processing pipeline for page number extraction
-- [ ] 11-02-PLAN.md -- Chat API citation storage and admin UI display
+- [x] 11-01-PLAN.md -- Schema and processing pipeline for page number extraction
+- [x] 11-02-PLAN.md -- Chat API citation storage and admin UI display
 
 ## Progress
 
@@ -169,9 +169,9 @@ Phases execute in numeric order: 7 -> 8 -> 9 -> 10 -> 11
 | 8. Function Calling Enhancement | v1.1 | 2/2 | Complete | 2026-02-03 |
 | 9. Suggested Response Chips | v1.1 | 2/2 | Complete | 2026-02-03 |
 | 10. Validation Improvements | v1.1 | 2/2 | Complete | 2026-02-03 |
-| 11. Citation Quality Enhancement | v1.1 | 0/2 | Planned | - |
+| 11. Citation Quality Enhancement | v1.1 | 2/2 | Complete | 2026-02-03 |
 
 ---
 
 *Roadmap created: 2026-01-26*
-*Last updated: 2026-02-03 (Phase 10 complete - 2 plans executed)*
+*Last updated: 2026-02-03 (Phase 11 complete - v1.1 milestone shipped)*
