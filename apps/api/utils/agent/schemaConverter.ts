@@ -11,30 +11,7 @@ import {
   ZodLiteral,
   ZodUnion,
 } from 'zod';
-
-type GeminiPropertyType =
-  | 'STRING'
-  | 'NUMBER'
-  | 'BOOLEAN'
-  | 'INTEGER'
-  | 'OBJECT'
-  | 'ARRAY';
-
-interface GeminiProperty {
-  type: GeminiPropertyType;
-  description?: string;
-  enum?: string[];
-}
-
-interface GeminiFunctionDeclaration {
-  name: string;
-  description: string;
-  parameters: {
-    type: 'OBJECT';
-    properties: Record<string, GeminiProperty>;
-    required: string[];
-  };
-}
+import { Type, type FunctionDeclaration, type Schema } from '@google/genai';
 
 /**
  * Convert a Zod schema to Gemini function calling format
@@ -46,9 +23,9 @@ export function zodToGeminiTool(
   name: string,
   description: string,
   schema: ZodObject<z.ZodRawShape>
-): { functionDeclarations: GeminiFunctionDeclaration[] } {
+): { functionDeclarations: FunctionDeclaration[] } {
   const shape = schema.shape;
-  const properties: Record<string, GeminiProperty> = {};
+  const properties: Record<string, Schema> = {};
   const required: string[] = [];
 
   for (const [key, zodType] of Object.entries(shape)) {
@@ -65,7 +42,7 @@ export function zodToGeminiTool(
         name,
         description,
         parameters: {
-          type: 'OBJECT',
+          type: Type.OBJECT,
           properties,
           required,
         },
@@ -77,7 +54,7 @@ export function zodToGeminiTool(
 function convertZodType(
   key: string,
   zodType: ZodType
-): { property: GeminiProperty; isRequired: boolean } {
+): { property: Schema; isRequired: boolean } {
   let innerType = zodType;
   let isRequired = true;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,14 +77,14 @@ function convertZodType(
     description = description || ((innerType as any)._def?.description as string | undefined);
   }
 
-  const property: GeminiProperty = { type: 'STRING' };
+  const property: Schema = { type: Type.STRING };
   if (description) {
     property.description = description;
   }
 
   // Handle ZodEnum
   if (innerType instanceof ZodEnum) {
-    property.type = 'STRING';
+    property.type = Type.STRING;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     property.enum = (innerType as any)._def.values as string[];
     return { property, isRequired };
@@ -122,10 +99,10 @@ function convertZodType(
       const values = options.map((opt) => (opt as any)._def.value as unknown);
       // Check if all literals are numbers
       if (values.every((v: unknown) => typeof v === 'number')) {
-        property.type = 'NUMBER';
+        property.type = Type.NUMBER;
         property.enum = values.map((v) => String(v));
       } else {
-        property.type = 'STRING';
+        property.type = Type.STRING;
         property.enum = values.map(String);
       }
       return { property, isRequired };
@@ -134,7 +111,7 @@ function convertZodType(
 
   // Handle ZodString
   if (innerType instanceof ZodString) {
-    property.type = 'STRING';
+    property.type = Type.STRING;
     return { property, isRequired };
   }
 
@@ -144,13 +121,13 @@ function convertZodType(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const checks = ((innerType as any)._def.checks || []) as Array<{ kind: string }>;
     const isInt = checks.some((c) => c.kind === 'int');
-    property.type = isInt ? 'INTEGER' : 'NUMBER';
+    property.type = isInt ? Type.INTEGER : Type.NUMBER;
     return { property, isRequired };
   }
 
   // Handle ZodBoolean
   if (innerType instanceof ZodBoolean) {
-    property.type = 'BOOLEAN';
+    property.type = Type.BOOLEAN;
     return { property, isRequired };
   }
 
@@ -159,11 +136,11 @@ function convertZodType(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const value = (innerType as any)._def.value as unknown;
     if (typeof value === 'number') {
-      property.type = 'NUMBER';
+      property.type = Type.NUMBER;
     } else if (typeof value === 'boolean') {
-      property.type = 'BOOLEAN';
+      property.type = Type.BOOLEAN;
     } else {
-      property.type = 'STRING';
+      property.type = Type.STRING;
     }
     return { property, isRequired };
   }
@@ -176,8 +153,8 @@ function convertZodType(
  * Merge multiple tool declarations into a single tools object
  */
 export function mergeTools(
-  ...tools: { functionDeclarations: GeminiFunctionDeclaration[] }[]
-): { functionDeclarations: GeminiFunctionDeclaration[] } {
+  ...tools: { functionDeclarations: FunctionDeclaration[] }[]
+): { functionDeclarations: FunctionDeclaration[] } {
   return {
     functionDeclarations: tools.flatMap((t) => t.functionDeclarations),
   };
