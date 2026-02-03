@@ -135,16 +135,17 @@ Plans:
 - [ ] 10-02-PLAN.md -- Chat route integration with two-phase validation and escalation chips
 
 ### Phase 11: Citation Quality Enhancement
-**Goal:** RAG responses include document name and page number for trust
+**Goal:** Admin sees document name and page numbers for RAG-sourced answers (users see clean responses)
 **Depends on:** Phase 6 (RAG Integration - enhances existing citations)
 **Requirements:** VALD-03, VALD-04
 **Success Criteria** (what must be TRUE):
-  1. RAG citations include document name in response (e.g., "[TVoD_2025.pdf]")
-  2. RAG citations include page number when available (e.g., "[TVoD_2025.pdf, S. 12]")
-**Plans:** TBD
+  1. Admin sees document name and page number in inquiry detail view (e.g., "TVoD_2025.pdf, S. 12")
+  2. Users see NO source references in chat responses (admin-only citations)
+**Plans:** 2 plans
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 11-01-PLAN.md -- Schema and processing pipeline for page number extraction
+- [ ] 11-02-PLAN.md -- Chat API citation storage and admin UI display
 
 ## Progress
 
@@ -168,9 +169,9 @@ Phases execute in numeric order: 7 -> 8 -> 9 -> 10 -> 11
 | 8. Function Calling Enhancement | v1.1 | 2/2 | Complete | 2026-02-03 |
 | 9. Suggested Response Chips | v1.1 | 2/2 | Complete | 2026-02-03 |
 | 10. Validation Improvements | v1.1 | 0/2 | Planned | - |
-| 11. Citation Quality Enhancement | v1.1 | 0/TBD | Not started | - |
+| 11. Citation Quality Enhancement | v1.1 | 0/2 | Planned | - |
 
 ---
 
 *Roadmap created: 2026-01-26*
-*Last updated: 2026-02-03 (Phase 10 planned - 2 plans in 2 waves)*
+*Last updated: 2026-02-03 (Phase 11 planned - 2 plans in 2 waves)*
