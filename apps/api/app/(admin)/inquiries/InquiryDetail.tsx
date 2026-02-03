@@ -1,7 +1,45 @@
-import { InquiryRow } from '@/app/actions/inquiries';
+import { InquiryRow, Citation } from '@/app/actions/inquiries';
 
 interface InquiryDetailProps {
   inquiry: InquiryRow;
+}
+
+/**
+ * Consolidate citations for display by document name
+ * Extracts unique page numbers and formats them comma-separated
+ */
+function consolidateCitationsForDisplay(citations: Citation[]): Array<{ documentName: string; pages: string }> {
+  const byDocument = new Map<string, Set<string>>();
+
+  for (const citation of citations) {
+    const existing = byDocument.get(citation.documentName);
+    if (existing) {
+      // Extract individual page references from the combined string (e.g., "S. 5, S. 7")
+      if (citation.pages) {
+        const pageMatches = citation.pages.match(/S\.\s*\d+(?:-\d+)?/g);
+        if (pageMatches) {
+          pageMatches.forEach(p => existing.add(p));
+        }
+      }
+    } else {
+      const pages = new Set<string>();
+      if (citation.pages) {
+        const pageMatches = citation.pages.match(/S\.\s*\d+(?:-\d+)?/g);
+        if (pageMatches) {
+          pageMatches.forEach(p => pages.add(p));
+        }
+      }
+      byDocument.set(citation.documentName, pages);
+    }
+  }
+
+  // Convert to array and sort by document name
+  return Array.from(byDocument.entries())
+    .map(([documentName, pages]) => ({
+      documentName,
+      pages: Array.from(pages).join(', ')
+    }))
+    .sort((a, b) => a.documentName.localeCompare(b.documentName));
 }
 
 export default function InquiryDetail({ inquiry }: InquiryDetailProps) {
@@ -28,6 +66,7 @@ export default function InquiryDetail({ inquiry }: InquiryDetailProps) {
   const taxDetails = inquiry.details?.tax_details || {};
   const taxes = inquiry.details?.taxes;
   const socialSecurity = inquiry.details?.socialSecurity;
+  const citations = inquiry.details?.citations;
 
   return (
     <div className="space-y-6">
@@ -166,6 +205,27 @@ export default function InquiryDetail({ inquiry }: InquiryDetailProps) {
           <p className="text-sm text-gray-900 dark:text-gray-100">
             {inquiry.email}
           </p>
+        </div>
+      )}
+
+      {/* Citations - Admin traceability (Phase 11) */}
+      {citations && citations.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+            Quellenangaben
+          </h3>
+          <div className="space-y-2">
+            {consolidateCitationsForDisplay(citations).map((citation, index) => (
+              <div key={index} className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {citation.documentName}
+                </span>
+                {citation.pages && (
+                  <span className="ml-1">, {citation.pages}</span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

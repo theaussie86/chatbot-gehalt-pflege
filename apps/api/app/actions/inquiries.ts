@@ -10,6 +10,13 @@ export interface InquiryFilters {
   sortOrder?: 'asc' | 'desc'; // Default 'desc'
 }
 
+export interface Citation {
+  documentId: string;
+  documentName: string;
+  pages: string | null;  // "S. 5" or "S. 5, S. 7" or null
+  similarity: number;
+}
+
 export interface InquiryRow {
   id: string;
   created_at: string;
@@ -24,6 +31,7 @@ export interface InquiryRow {
     socialSecurity?: { kv: number; rv: number; av: number; pv: number };
     job_details?: Record<string, any>;
     tax_details?: Record<string, any>;
+    citations?: Citation[];  // Admin-only RAG citations from Phase 11
     [key: string]: any;
   };
 }
