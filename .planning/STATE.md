@@ -63,6 +63,10 @@ Full decision log in PROJECT.md Key Decisions table.
 **Phase 11 (Required for page data):**
 - Apply migration 20260203000000_add_page_data_to_chunks.sql to database
 
+### Pending Todos
+
+1 todo in `.planning/todos/pending/`
+
 ### Blockers/Concerns
 
 **All P0/P1 concerns addressed.** No open blockers.
