@@ -12,7 +12,7 @@ export class SalaryStateMachine {
 
   // Define required fields for each state to act as Guardrails
   private static REQUIREMENTS: Record<string, string[]> = {
-    job_details: ['tarif', 'experience', 'hours', 'state'],
+    job_details: ['tarif', 'group', 'experience', 'hours', 'state'],
     tax_details: ['taxClass', 'churchTax', 'numberOfChildren'],
     summary: [],
     completed: []
