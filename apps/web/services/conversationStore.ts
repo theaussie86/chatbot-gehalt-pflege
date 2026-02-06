@@ -1,14 +1,14 @@
-import { Message, FormState } from "../types";
-
-export interface StoredConversation {
-  messages: Message[];
-  formState: FormState;
-  progress: number;
-  updatedAt: string;
-}
+import { StoredConversation } from "../types";
 
 export class ConversationStore {
   static STORAGE_KEY = 'pflege-chat-conversation';
+
+  /**
+   * Generate a new session ID for server-side draft tracking
+   */
+  static generateSessionId(): string {
+    return crypto.randomUUID();
+  }
 
   static save(data: StoredConversation): void {
     try {
@@ -44,11 +44,15 @@ export class ConversationStore {
         timestamp: new Date(msg.timestamp)
       }));
 
+      // Ensure sessionId exists (migrate old conversations)
+      const sessionId = parsed.sessionId || this.generateSessionId();
+
       return {
         messages,
         formState: parsed.formState,
         progress: parsed.progress,
-        updatedAt: parsed.updatedAt
+        updatedAt: parsed.updatedAt,
+        sessionId
       };
     } catch (error) {
       console.error('Failed to load conversation:', error);

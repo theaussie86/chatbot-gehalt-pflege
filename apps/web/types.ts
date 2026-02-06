@@ -54,3 +54,12 @@ export const DEFAULT_FORM_STATE: FormState = {
   },
   missingFields: ['tarif', 'group', 'experience', 'hours', 'state'],
 };
+
+// Stored conversation includes sessionId for server-side draft persistence
+export interface StoredConversation {
+  messages: Message[];
+  formState: FormState;
+  progress: number;
+  updatedAt: string;
+  sessionId: string; // UUID linking this conversation to server-side draft
+}

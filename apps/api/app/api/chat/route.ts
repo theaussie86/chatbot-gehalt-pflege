@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         // Look for 'projectId' specifically. 
-        const { message, history, projectId, apiKey } = body;
+        const { message, history, projectId, apiKey, sessionId } = body;
         const origin = request.headers.get('origin');
         const ip = request.headers.get('x-forwarded-for') || 'unknown';
 
@@ -329,19 +329,89 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
 
                 // --- US-014 & US-015: MAP FORMSTATE AND TRIGGER CALCULATION ---
                 try {
+                    const { executeTariffLookup } = await import("../../../utils/agent/tools/tariffLookup");
                     const taxWrapper = new TaxWrapper();
                     const jobData = nextFormState.data.job_details || {};
                     const taxData = nextFormState.data.tax_details || {};
 
-                    // Calculate yearly salary from tariff data
-                    // For now, use a rough estimate based on group and experience
-                    // In production, this would query actual tariff tables
-                    const estimatedYearlySalary = estimateYearlySalary(
-                        jobData.tarif,
-                        jobData.group,
-                        jobData.experience,
-                        jobData.hours
+                    // Parse experience to stufe (1-6)
+                    let stufe = '2'; // Default
+                    if (jobData.experience) {
+                        const expStr = String(jobData.experience).toLowerCase();
+                        const stufeMatch = expStr.match(/stufe\s*(\d)/i) || expStr.match(/^(\d)$/);
+                        if (stufeMatch) {
+                            stufe = stufeMatch[1];
+                        } else {
+                            // Parse years of experience
+                            const yearsMatch = expStr.match(/(\d+)/);
+                            if (yearsMatch) {
+                                const years = parseInt(yearsMatch[1], 10);
+                                if (years < 1) stufe = '1';
+                                else if (years < 3) stufe = '2';
+                                else if (years < 6) stufe = '3';
+                                else if (years < 10) stufe = '4';
+                                else if (years < 15) stufe = '5';
+                                else stufe = '6';
+                            }
+                        }
+                    }
+
+                    // Normalize tarif to valid enum value
+                    let normalizedTarif: 'tvoed' | 'tv-l' | 'avr' = 'tvoed';
+                    const tarifLower = (jobData.tarif || '').toLowerCase().replace('tvöd', 'tvoed');
+                    if (tarifLower === 'tv-l' || tarifLower === 'tvl') {
+                        normalizedTarif = 'tv-l';
+                    } else if (tarifLower === 'avr') {
+                        normalizedTarif = 'avr';
+                    }
+
+                    // Ensure stufe is valid enum value
+                    const validStufe = ['1', '2', '3', '4', '5', '6'].includes(stufe)
+                        ? stufe as '1' | '2' | '3' | '4' | '5' | '6'
+                        : '2' as const;
+
+                    // --- RAG-BASED TARIFF LOOKUP ---
+                    // First try to get salary from uploaded documents
+                    let estimatedYearlySalary: number;
+                    let salarySource: string = 'hardcoded';
+
+                    const ragTariffResult = await vectorstore.queryTariffData(
+                        normalizedTarif,
+                        jobData.group || 'P7',
+                        validStufe,
+                        activeProjectId
                     );
+
+                    if (ragTariffResult.success && ragTariffResult.yearlyGross) {
+                        // Adjust for part-time if needed
+                        const hours = jobData.hours || 38.5;
+                        const fullTimeHours = 38.5;
+                        estimatedYearlySalary = ragTariffResult.yearlyGross * (hours / fullTimeHours);
+                        salarySource = ragTariffResult.source || 'document';
+                        console.log('[StateMachine] Using RAG tariff data:', {
+                            yearly: estimatedYearlySalary,
+                            monthly: ragTariffResult.monthlyGross,
+                            source: salarySource
+                        });
+                    } else {
+                        // Fall back to hardcoded tables
+                        console.log('[StateMachine] RAG tariff lookup failed, using hardcoded tables:', ragTariffResult.error);
+
+                        const tariffResult = executeTariffLookup({
+                            tarif: normalizedTarif,
+                            group: jobData.group || 'P7',
+                            stufe: validStufe,
+                            hours: jobData.hours || 38.5
+                        });
+
+                        if (!tariffResult.success) {
+                            console.error('[StateMachine] Hardcoded tariff lookup also failed:', tariffResult.error);
+                        }
+
+                        estimatedYearlySalary = tariffResult.success
+                            ? tariffResult.grossSalary!
+                            : estimateYearlySalary(jobData.tarif, jobData.group, jobData.experience, jobData.hours);
+                    }
 
                     // Map churchTax to proper format
                     let churchTaxValue: 'none' | 'bayern' | 'baden_wuerttemberg' | 'common' = 'none';
@@ -387,25 +457,49 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                     const rawCitations = (nextFormState.ragCitations as Citation[] | undefined) || [];
                     const consolidatedCitations = consolidateCitationsByDocument(rawCitations);
 
-                    const saveResult = await getSupabaseAdmin()
-                        .from('salary_inquiries')
-                        .insert({
-                            public_key: activeProjectId,
-                            gruppe: jobData.group || 'P7',
-                            stufe: jobData.experience || '2',
-                            tarif: jobData.tarif || 'tvoed',
-                            jahr: new Date().getFullYear(),
-                            brutto: monthlyBrutto,
-                            netto: monthlyNetto,
-                            details: {
-                                ...calculationResult,
-                                job_details: jobData,
-                                tax_details: taxData,
-                                citations: consolidatedCitations  // Admin-only RAG citations
-                            }
-                        })
-                        .select('id')
-                        .single();
+                    // Use upsert if we have a sessionId (update draft to completed)
+                    // Otherwise fall back to insert for backwards compatibility
+
+                    // Parse stufe to integer (column is integer type)
+                    let completedStufe: number = 2; // Default
+                    if (jobData.experience) {
+                        const match = String(jobData.experience).match(/(\d+)/);
+                        if (match) {
+                            completedStufe = parseInt(match[1], 10);
+                        }
+                    }
+
+                    const saveData = {
+                        public_key: activeProjectId,
+                        gruppe: jobData.group || 'P7',
+                        stufe: completedStufe,
+                        tarif: jobData.tarif || 'tvoed',
+                        jahr: String(new Date().getFullYear()),  // Column is text type
+                        brutto: monthlyBrutto,
+                        netto: monthlyNetto,
+                        status: 'completed',
+                        last_section: 'completed',
+                        details: {
+                            ...calculationResult,
+                            job_details: jobData,
+                            tax_details: taxData,
+                            citations: consolidatedCitations,  // Admin-only RAG citations
+                            salarySource  // Track if salary came from RAG documents or hardcoded tables
+                        },
+                        ...(sessionId && { session_id: sessionId })
+                    };
+
+                    const saveResult = sessionId
+                        ? await getSupabaseAdmin()
+                            .from('salary_inquiries')
+                            .upsert(saveData, { onConflict: 'session_id' })
+                            .select('id')
+                            .single()
+                        : await getSupabaseAdmin()
+                            .from('salary_inquiries')
+                            .insert(saveData)
+                            .select('id')
+                            .single();
 
                     if (saveResult.error) {
                         console.error('[StateMachine] Failed to save calculation:', saveResult.error);
@@ -605,12 +699,23 @@ Halte dich kurz (1-2 Sätze).
                     Aufgabe: Extrahiere Werte für die gesuchten Felder. Sei tolerant bei der Eingabe.
 
                     Mapping-Hilfe:
-                    - Beruf/Ausbildung → tarif + experience (z.B. "Pflegefachkraft, 5 Jahre")
-                    - Arbeitszeit → hours (z.B. "Vollzeit" = 38.5, "30 Stunden" = 30)
+                    - Qualifikation/Beruf → group (Entgeltgruppe):
+                      * Pflegehelfer/Pflegeassistent ohne Ausbildung → P5
+                      * Pflegehelfer mit 1-jähriger Ausbildung → P6
+                      * Pflegefachkraft/Pflegefachfrau/Pflegefachmann/exam. Altenpfleger → P7
+                      * Pflegefachkraft mit Zusatzaufgaben/Fachweiterbildung → P8
+                      * Praxisanleiter/Wohnbereichsleitung → P9
+                      * Stationsleitung/PDL → P10-P12
+                    - Berufserfahrung → experience (z.B. "5 Jahre" → "5")
+                    - Tarifvertrag → tarif (TVöD, TV-L, AVR, öffentlicher Dienst → tvoed)
+                    - Arbeitszeit → hours (z.B. "Vollzeit" = 38.5, "30 Stunden" = 30, "Teilzeit 50%" = 19.25)
                     - Ort/Region → state (z.B. "NRW" = "Nordrhein-Westfalen")
                     - Familienstand → taxClass (ledig=1, verheiratet=4)
                     - Kinder → numberOfChildren
                     - Kirchenmitglied → churchTax (ja/nein → true/false)
+
+                    WICHTIG: Wenn der Nutzer seine Qualifikation nennt (z.B. "Pflegefachkraft"),
+                    extrahiere daraus die Entgeltgruppe als "group" Feld!
 
                     Gib NUR ein JSON zurück: { "extracted": { "field": "value" } }
                     Wenn nichts gefunden, gib leeres Objekt: { "extracted": {} }
@@ -755,8 +860,17 @@ WICHTIG:
             }
 
             // --- STATE MACHINE LOGIC (Transition & Guardrails) ---
+            const previousSection = nextFormState.section;
             const stepResult = SalaryStateMachine.getNextStep(nextFormState);
             nextFormState = stepResult.nextState;
+
+            // --- DRAFT PERSISTENCE: Save on section transitions ---
+            // Save draft when transitioning to tax_details or summary (not on every turn)
+            if (sessionId && previousSection !== nextFormState.section) {
+                if (nextFormState.section === 'tax_details' || nextFormState.section === 'summary') {
+                    await saveDraftInquiry(sessionId, activeProjectId, nextFormState);
+                }
+            }
 
             // --- US-011: SUMMARY STATE DISPLAY ---
             if (nextFormState.section === 'summary') {
@@ -1086,6 +1200,58 @@ function consolidateCitationsByDocument(citations: Citation[]): Citation[] {
             similarity: data.maxSimilarity
         }))
         .sort((a, b) => b.similarity - a.similarity);
+}
+
+/**
+ * Save draft inquiry for progressive persistence
+ * Called on section transitions to save partial data
+ */
+async function saveDraftInquiry(
+    sessionId: string,
+    projectId: string,
+    formState: FormState
+): Promise<void> {
+    const jobData = formState.data.job_details || {};
+    const taxData = formState.data.tax_details || {};
+
+    // Parse stufe to integer (column is integer type)
+    // Experience can be "5 Jahre", "Stufe 2", or just "2"
+    let stufeValue: number | null = null;
+    if (jobData.experience) {
+        const match = String(jobData.experience).match(/(\d+)/);
+        if (match) {
+            stufeValue = parseInt(match[1], 10);
+        }
+    }
+
+    try {
+        const { error } = await getSupabaseAdmin()
+            .from('salary_inquiries')
+            .upsert({
+                session_id: sessionId,
+                public_key: projectId,
+                status: 'draft',
+                last_section: formState.section,
+                gruppe: jobData.group || null,
+                stufe: stufeValue,
+                tarif: jobData.tarif || null,
+                jahr: String(new Date().getFullYear()),  // Column is text type
+                brutto: null,  // Not calculated yet
+                netto: null,
+                details: {
+                    job_details: jobData,
+                    tax_details: taxData
+                }
+            }, { onConflict: 'session_id' });
+
+        if (error) {
+            console.error('[DraftPersistence] Failed to save draft:', error);
+        } else {
+            console.log(`[DraftPersistence] Saved draft for session ${sessionId} at section ${formState.section}`);
+        }
+    } catch (e) {
+        console.error('[DraftPersistence] Error saving draft:', e);
+    }
 }
 
 // Enable CORS Preflight

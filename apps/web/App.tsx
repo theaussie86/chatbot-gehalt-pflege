@@ -35,6 +35,7 @@ export default function App({ config }: AppProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [formState, setFormState] = useState<FormState>(DEFAULT_FORM_STATE);
+  const [sessionId, setSessionId] = useState<string>(() => ConversationStore.generateSessionId());
   const [inquiryId, setInquiryId] = useState<string | null>(null);
   const [doiLoading, setDoiLoading] = useState(false);
   const [doiSubmitted, setDoiSubmitted] = useState(false);
@@ -85,6 +86,7 @@ export default function App({ config }: AppProps) {
       setMessages(savedConversation.messages);
       setFormState(savedConversation.formState);
       setProgress(savedConversation.progress);
+      setSessionId(savedConversation.sessionId);
       // Don't persist suggestions - start fresh
       setSuggestions([]);
     }
@@ -206,11 +208,12 @@ export default function App({ config }: AppProps) {
     }
 
     try {
-      // Get AI response with current form state
+      // Get AI response with current form state and session ID for draft persistence
       const { text: rawText, formState: newFormState, inquiryId: newInquiryId, suggestions: newSuggestions } = await sendMessageToGemini(
         textToSend,
         messages,
-        formState
+        formState,
+        sessionId
       );
 
       const { cleanText, newProgress, resultData, options } = parseResponse(rawText);
@@ -266,7 +269,8 @@ export default function App({ config }: AppProps) {
           messages: updatedMessages,
           formState: finalFormState,
           progress: finalProgress,
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          sessionId
         });
       }
 
@@ -301,6 +305,7 @@ export default function App({ config }: AppProps) {
     setFormState(DEFAULT_FORM_STATE);
     setProgress(0);
     setInputValue('');
+    setSessionId(ConversationStore.generateSessionId()); // New session for new conversation
     setInquiryId(null);
     setDoiLoading(false);
     setDoiSubmitted(false);

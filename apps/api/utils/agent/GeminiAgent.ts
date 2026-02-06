@@ -75,7 +75,9 @@ export class GeminiAgent {
 
             // Extract function calls
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let functionCalls = (result as any).functionCalls ? (result as any).functionCalls() : null;
+            const fc = (result as any).functionCalls;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let functionCalls = fc ? (typeof fc === 'function' ? fc() : fc) : null;
 
             if (!functionCalls) {
                 // Fallback manual extraction
@@ -130,19 +132,14 @@ export class GeminiAgent {
                 console.log(`[GeminiAgent] Tool ${call.name} failed (attempt ${executionResult.retryCount}):`, executionResult.error);
             }
 
-            // Send tool result back to model
+            // Send tool result back to model (function response as parts array)
             result = await chat.sendMessage({
-                message: [
-                    {
-                        role: "function",
-                        parts: [{
-                            functionResponse: {
-                                name: call.name,
-                                response: toolResponse
-                            }
-                        }]
+                message: [{
+                    functionResponse: {
+                        name: call.name,
+                        response: toolResponse
                     }
-                ]
+                }]
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any);
         }

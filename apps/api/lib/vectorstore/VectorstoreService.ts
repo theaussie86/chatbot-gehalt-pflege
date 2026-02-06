@@ -327,6 +327,131 @@ export class VectorstoreService {
   }
 
   /**
+   * Query vectorstore for tariff/salary data and extract structured salary information
+   * @param tarif The tariff system (tvoed, tv-l, avr)
+   * @param group The pay group (e.g., P7, E9)
+   * @param stufe The experience level (1-6)
+   * @param projectId The project ID for filtering
+   * @returns Extracted salary data or null if not found
+   */
+  async queryTariffData(
+    tarif: string,
+    group: string,
+    stufe: string,
+    projectId: string
+  ): Promise<{
+    success: boolean;
+    monthlyGross?: number;
+    yearlyGross?: number;
+    source?: string;
+    error?: string;
+  }> {
+    try {
+      // Build a specific query for tariff data
+      const tarifName = tarif === 'tvoed' ? 'TVöD' : tarif === 'tv-l' ? 'TV-L' : 'AVR';
+      const query = `${tarifName} Entgeltgruppe ${group} Stufe ${stufe} Gehalt Bruttogehalt monatlich`;
+
+      console.log('[VectorstoreService] Tariff query:', query);
+
+      // Query with higher match count to find relevant tariff tables
+      const embedding = await this.generateEmbedding(query);
+
+      const { data: results, error } = await this.supabase.rpc('match_documents_with_metadata', {
+        query_embedding: embedding,
+        match_threshold: 0.4, // Lower threshold to catch tariff tables
+        match_count: 5,
+        filter_project_id: projectId
+      });
+
+      if (error) {
+        console.error('[VectorstoreService] Tariff search error:', error);
+        return { success: false, error: 'Database query failed' };
+      }
+
+      if (!results || results.length === 0) {
+        console.log('[VectorstoreService] No tariff documents found');
+        return { success: false, error: 'No tariff documents found' };
+      }
+
+      // Combine relevant chunks for extraction
+      const context = results
+        .map((r: any) => r.content)
+        .join('\n\n---\n\n');
+
+      console.log('[VectorstoreService] Found', results.length, 'chunks for tariff extraction');
+
+      // Use Gemini to extract the specific salary value
+      const extractionPrompt = `
+Du bist ein Daten-Extraktor für Gehaltsdaten aus Tariftabellen.
+
+Kontext aus Dokumenten:
+${context}
+
+Aufgabe: Finde das monatliche Bruttogehalt für:
+- Tarifvertrag: ${tarifName}
+- Entgeltgruppe: ${group}
+- Stufe: ${stufe}
+
+WICHTIG:
+- Suche nach einer Tabelle oder Liste mit Gehaltswerten
+- Das Gehalt sollte ein monatlicher Bruttobetrag sein (typisch zwischen 2.500€ und 7.000€)
+- Wenn du den exakten Wert findest, gib ihn zurück
+- Wenn du keinen passenden Wert findest, gib null zurück
+
+Antworte NUR mit JSON:
+{
+  "found": true/false,
+  "monthlyGross": <Zahl oder null>,
+  "confidence": "high"/"medium"/"low",
+  "source": "<Quellenangabe wenn vorhanden>"
+}
+`;
+
+      const extractResult = await this.genAI.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: extractionPrompt,
+        config: { responseMimeType: 'application/json' }
+      });
+
+      const extractText = extractResult.text || '';
+      const cleanJson = extractText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+      try {
+        const extracted = JSON.parse(cleanJson);
+
+        if (extracted.found && extracted.monthlyGross && extracted.confidence !== 'low') {
+          const monthlyGross = parseFloat(extracted.monthlyGross);
+          if (!isNaN(monthlyGross) && monthlyGross > 1000 && monthlyGross < 15000) {
+            console.log('[VectorstoreService] Extracted tariff data:', {
+              monthlyGross,
+              confidence: extracted.confidence,
+              source: extracted.source
+            });
+
+            return {
+              success: true,
+              monthlyGross,
+              yearlyGross: monthlyGross * 12,
+              source: extracted.source || results[0]?.filename
+            };
+          }
+        }
+
+        console.log('[VectorstoreService] Extraction failed or low confidence:', extracted);
+        return { success: false, error: 'Could not extract salary from documents' };
+
+      } catch (parseError) {
+        console.error('[VectorstoreService] Failed to parse extraction result:', parseError);
+        return { success: false, error: 'Failed to parse extracted data' };
+      }
+
+    } catch (error) {
+      console.error('[VectorstoreService] Tariff query failed:', error);
+      return { success: false, error: 'Tariff query failed' };
+    }
+  }
+
+  /**
    * Clear the query cache (useful for testing or when documents are updated)
    */
   clearCache(): void {

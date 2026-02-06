@@ -2,7 +2,7 @@
 
 import { Project } from '@/app/actions/projects';
 import Script from 'next/script';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
@@ -12,6 +12,34 @@ declare global {
 }
 
 const INITIAL_MESSAGE_TEXT = "Hallo! Ich bin dein Assistent für den TVöD-Pflege Gehaltsrechner. Ich helfe dir, dein Gehalt im Pflegebereich zu schätzen. \n\nFür welches Jahr möchtest du eine Berechnung durchführen?";
+
+// FormState type for state machine
+interface FormState {
+  section: 'job_details' | 'tax_details' | 'summary' | 'completed';
+  data: {
+    job_details?: Record<string, any>;
+    tax_details?: Record<string, any>;
+    calculation_result?: Record<string, any>;
+  };
+  missingFields: string[];
+  conversationContext?: string[];
+  userIntent?: string;
+  validationErrors?: Record<string, string>;
+}
+
+const DEFAULT_FORM_STATE: FormState = {
+  section: 'job_details',
+  data: {
+    job_details: {},
+    tax_details: {},
+  },
+  missingFields: ['tarif', 'group', 'experience', 'hours', 'state'],
+};
+
+// Generate UUID for session tracking
+function generateSessionId(): string {
+  return crypto.randomUUID();
+}
 
 export default function TestWidgetView({ projects }: { projects: Project[] }) {
   const [mode, setMode] = useState<'widget' | 'api'>('widget');
@@ -27,6 +55,26 @@ export default function TestWidgetView({ projects }: { projects: Project[] }) {
   }]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // State machine state for draft persistence
+  const [formState, setFormState] = useState<FormState>(DEFAULT_FORM_STATE);
+  const [sessionId, setSessionId] = useState<string>(() => generateSessionId());
+
+  // Refs for focus and auto-scroll
+  const inputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
+
+  // Restore focus to input when loading completes
+  useEffect(() => {
+    if (!isLoading && mode === 'api') {
+      inputRef.current?.focus();
+    }
+  }, [isLoading, mode]);
 
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
@@ -59,6 +107,8 @@ export default function TestWidgetView({ projects }: { projects: Project[] }) {
           sender: 'bot',
           text: INITIAL_MESSAGE_TEXT
       }]);
+      setFormState(DEFAULT_FORM_STATE);
+      setSessionId(generateSessionId());
   };
 
   const handleSendMessage = async () => {
@@ -76,16 +126,22 @@ export default function TestWidgetView({ projects }: { projects: Project[] }) {
         body: JSON.stringify({
           message: userMsg.text,
           history: messages, // Send history including initial message
-          projectId: selectedProject.public_key
+          projectId: selectedProject.public_key,
+          currentFormState: formState, // Enable state machine flow
+          sessionId: sessionId // Enable draft persistence
         })
       });
 
       const data = await response.json();
-      
+
       if (data.error) {
          setMessages(prev => [...prev, { sender: 'bot', text: `Error: ${data.error}` }]);
       } else {
          setMessages(prev => [...prev, { sender: 'bot', text: data.text }]);
+         // Update formState from response for state machine continuity
+         if (data.formState) {
+           setFormState(data.formState);
+         }
       }
     } catch (e: any) {
        setMessages(prev => [...prev, { sender: 'bot', text: `Network Error: ${e.message}` }]);
@@ -222,16 +278,26 @@ export default function TestWidgetView({ projects }: { projects: Project[] }) {
                             </div>
                          </div>
                     )}
+                    {/* Scroll anchor */}
+                    <div ref={messagesEndRef} />
                 </div>
 
                 {/* Input Area */}
                 <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                     <div className="flex gap-2">
                         <input
+                            ref={inputRef}
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleSendMessage();
+                                // Keep focus on input
+                                inputRef.current?.focus();
+                              }
+                            }}
                             disabled={!selectedProjectId || isLoading}
                             placeholder={selectedProjectId ? "Type a message..." : "Select a project first"}
                             className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white px-4 py-2"

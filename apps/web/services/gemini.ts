@@ -14,7 +14,8 @@ export const initializeChat = (config: ChatConfig) => {
 export const sendMessageToGemini = async (
   userMessage: string,
   history: Message[],
-  currentFormState?: FormState
+  currentFormState?: FormState,
+  sessionId?: string
 ): Promise<{ text: string; formState?: FormState; inquiryId?: string; suggestions?: string[] }> => {
   if (!currentConfig) {
     throw new Error("Chat not initialized with configuration.");
@@ -31,6 +32,7 @@ export const sendMessageToGemini = async (
         history: history, // Send full history including previous messages
         projectId: currentConfig.projectId, // Sent as projectId for clarity
         currentFormState: currentFormState, // Send current form state for state machine
+        sessionId: sessionId, // Session ID for server-side draft persistence
       }),
     });
 
