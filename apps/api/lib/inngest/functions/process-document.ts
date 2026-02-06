@@ -478,25 +478,22 @@ export const processDocument = inngest.createFunction(
           }
         }
 
-        // Determine if page extraction succeeded
-        // has_page_data = true if any chunk has page data, false otherwise
-        const hasPageData = chunkDataArray.some(
-          chunk => chunk.page_start !== null || chunk.page_end !== null
-        );
-
-        // Update final status with has_page_data flag
-        await supabase
+        // Update final status
+        const { error: statusError } = await supabase
           .from("documents")
           .update({
             status: "embedded",
             chunk_count: chunkDataArray.length,
             processing_stage: null,
-            has_page_data: hasPageData,
           })
           .eq("id", documentId);
 
+        if (statusError) {
+          throw new Error(`Failed to update document status to embedded: ${statusError.message}`);
+        }
+
         console.log(
-          `Document ${documentId} processed successfully with ${chunkDataArray.length} chunks, has_page_data: ${hasPageData}`
+          `Document ${documentId} processed successfully with ${chunkDataArray.length} chunks`
         );
       });
 
