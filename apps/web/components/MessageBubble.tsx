@@ -7,6 +7,7 @@ import { DoiConsentForm } from './DoiConsentForm';
 interface MessageBubbleProps {
   message: Message;
   onOptionSelected?: (option: string) => void;
+  showOptions?: boolean;
   doiFormProps?: {
     onSubmit: (email: string) => void;
     isLoading: boolean;
@@ -14,7 +15,7 @@ interface MessageBubbleProps {
   };
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onOptionSelected, doiFormProps }) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onOptionSelected, showOptions = true, doiFormProps }) => {
   const isBot = message.sender === Sender.BOT;
 
   return (
@@ -51,7 +52,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onOptionS
             )}
 
             {/* Display Options/Quick Replies */}
-            {message.options && message.options.length > 0 && (
+            {showOptions && message.options && message.options.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3 animate-fade-in">
                     {message.options.map((option, idx) => (
                         <button

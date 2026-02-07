@@ -5,7 +5,6 @@ import { sendMessageToGemini, initializeChat, sendEmailExport } from './services
 import { MessageBubble } from './components/MessageBubble';
 import { StepBar } from './components/StepBar';
 import { ConversationStore } from './services/conversationStore';
-import { SuggestionChips } from './components/SuggestionChips';
 
 const INITIAL_MESSAGE_TEXT = "Hallo! Ich bin dein Assistent für den TVöD-Pflege Gehaltsrechner. Ich helfe dir, dein Gehalt im Pflegebereich zu schätzen. \n\nFür welches Jahr möchtest du eine Berechnung durchführen?";
 const currentYear = new Date().getFullYear();
@@ -39,11 +38,6 @@ export default function App({ config }: AppProps) {
   const [inquiryId, setInquiryId] = useState<string | null>(null);
   const [doiLoading, setDoiLoading] = useState(false);
   const [doiSubmitted, setDoiSubmitted] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [pendingChipAnimation, setPendingChipAnimation] = useState<{
-    text: string;
-    rect: DOMRect;
-  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -87,58 +81,9 @@ export default function App({ config }: AppProps) {
       setFormState(savedConversation.formState);
       setProgress(savedConversation.progress);
       setSessionId(savedConversation.sessionId);
-      // Don't persist suggestions - start fresh
-      setSuggestions([]);
     }
   }, [config]);
 
-  const animateChipToBubble = (chipRect: DOMRect) => {
-    // Find the newly added message bubble
-    const messagesContainer = document.querySelector('[data-messages-container]');
-    const lastBubble = messagesContainer?.lastElementChild;
-    if (!lastBubble) return;
-
-    const bubbleRect = lastBubble.getBoundingClientRect();
-
-    // Create flying clone
-    const clone = document.createElement('div');
-    clone.textContent = inputValue;
-    clone.className = `
-      fixed z-50 pointer-events-none
-      px-4 py-2 rounded-full
-      bg-[var(--primary-color)] text-white
-      font-medium text-sm
-    `;
-    clone.style.cssText = `
-      left: ${chipRect.left}px;
-      top: ${chipRect.top}px;
-      width: ${chipRect.width}px;
-      height: ${chipRect.height}px;
-      transition: all 300ms ease-out;
-    `;
-
-    document.body.appendChild(clone);
-
-    // Trigger animation on next frame
-    requestAnimationFrame(() => {
-      clone.style.left = `${bubbleRect.left}px`;
-      clone.style.top = `${bubbleRect.top}px`;
-      clone.style.width = `${bubbleRect.width}px`;
-      clone.style.height = `${bubbleRect.height}px`;
-      clone.style.borderRadius = '16px';
-    });
-
-    // Remove clone after animation
-    setTimeout(() => clone.remove(), 350);
-  };
-
-  const handleChipSelect = (text: string, chipRect?: DOMRect) => {
-    setInputValue(text);
-    if (chipRect) {
-      setPendingChipAnimation({ text, rect: chipRect });
-    }
-    inputRef.current?.focus();
-  };
 
   const parseResponse = (text: string): { cleanText: string; newProgress: number | null; resultData: SalaryResultData | null, options: string[] | undefined } => {
     let cleanText = text;
@@ -150,8 +95,9 @@ export default function App({ config }: AppProps) {
     const progressMatch = cleanText.match(/\[PROGRESS:\s*(\d+)\]/);
     if (progressMatch) {
       newProgress = parseInt(progressMatch[1], 10);
-      cleanText = cleanText.replace(progressMatch[0], '');
     }
+    // Strip ALL occurrences (handles duplicates from AI + backend)
+    cleanText = cleanText.replace(/\[PROGRESS:\s*\d+\]/g, '');
 
     // 2. Extract Options Tag: [OPTIONS: ["A", "B"]]
     const optionsMatch = cleanText.match(/\[OPTIONS:\s*(\[.*?\])\]/);
@@ -185,8 +131,6 @@ export default function App({ config }: AppProps) {
 
     if (!textToSend.trim() || isLoading) return;
 
-    // Clear suggestions while sending
-    setSuggestions([]);
     setInputValue('');
     setIsLoading(true);
 
@@ -200,12 +144,6 @@ export default function App({ config }: AppProps) {
 
     const updatedMessagesWithUser = [...messages, newUserMsg];
     setMessages(updatedMessagesWithUser);
-
-    // Trigger chip-to-bubble animation if pending
-    if (pendingChipAnimation && textToSend === pendingChipAnimation.text) {
-      animateChipToBubble(pendingChipAnimation.rect);
-      setPendingChipAnimation(null);
-    }
 
     try {
       // Get AI response with current form state and session ID for draft persistence
@@ -233,20 +171,19 @@ export default function App({ config }: AppProps) {
         setInquiryId(newInquiryId);
       }
 
+      const mergedOptions = [...(options || []), ...(newSuggestions || [])];
+
       const newBotMsg: Message = {
         id: (Date.now() + 1).toString(),
         text: cleanText,
         sender: Sender.BOT,
         timestamp: new Date(),
         resultData: resultData || undefined,
-        options: options
+        options: mergedOptions.length > 0 ? mergedOptions : undefined
       };
 
       const updatedMessages = [...updatedMessagesWithUser, newBotMsg];
       setMessages(updatedMessages);
-
-      // Set new suggestions (or clear if none)
-      setSuggestions(newSuggestions || []);
 
       // Save conversation to localStorage (unless completed)
       if (finalFormState.section === 'completed') {
@@ -309,9 +246,6 @@ export default function App({ config }: AppProps) {
     setInquiryId(null);
     setDoiLoading(false);
     setDoiSubmitted(false);
-    setSuggestions([]);
-    setPendingChipAnimation(null);
-
     // Focus input
     inputRef.current?.focus();
   };
@@ -392,18 +326,22 @@ export default function App({ config }: AppProps) {
 
       {/* Chat Area */}
       <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 scrollbar-hide" data-messages-container>
-        {messages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            onOptionSelected={(opt) => handleSendMessage(opt)}
-            doiFormProps={msg.showDoiForm ? {
-              onSubmit: handleEmailSubmit,
-              isLoading: doiLoading,
-              isSubmitted: doiSubmitted
-            } : undefined}
-          />
-        ))}
+        {(() => {
+          const lastBotIndex = messages.reduce((acc, m, i) => m.sender === Sender.BOT ? i : acc, -1);
+          return messages.map((msg, index) => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              onOptionSelected={(opt) => handleSendMessage(opt)}
+              showOptions={msg.sender === Sender.BOT && index === lastBotIndex && !isLoading}
+              doiFormProps={msg.showDoiForm ? {
+                onSubmit: handleEmailSubmit,
+                isLoading: doiLoading,
+                isSubmitted: doiSubmitted
+              } : undefined}
+            />
+          ));
+        })()}
         
         {/* Loading Indicator */}
         {isLoading && (
@@ -422,18 +360,8 @@ export default function App({ config }: AppProps) {
 
       {/* Input Area */}
       <footer className="bg-white border-t border-slate-200">
-        {/* Suggestion Chips - above input */}
-        <div className="pt-2">
-          <SuggestionChips
-            suggestions={suggestions}
-            onSelect={handleChipSelect}
-            isTyping={inputValue.length > 0}
-            disabled={isLoading}
-          />
-        </div>
-
         {/* Input container */}
-        <div className="p-4 pt-0">
+        <div className="p-4">
           <div className="relative flex items-end gap-2 bg-slate-100 p-2 pr-2 rounded-3xl border border-transparent focus-within:bg-white focus-within:ring-4 transition-all focus-within:border-[var(--primary-ring)] focus-within:ring-[var(--primary-light)]">
           <input
             ref={inputRef}

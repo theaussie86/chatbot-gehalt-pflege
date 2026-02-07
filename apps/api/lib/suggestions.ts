@@ -13,9 +13,9 @@ const PREDEFINED_CHIPS: Record<string, string[]> = {
   state: ['NRW', 'Bayern', 'Baden-Württemberg', 'Hessen', 'Niedersachsen', 'Berlin'],
 
   // tax_details stage
-  taxClass: ['1', '2', '3', '4', '5', '6'],
+  taxClass: ['Klasse 1 (ledig)', 'Klasse 2 (alleinerziehend)', 'Klasse 3 (verheiratet)', 'Klasse 4 (verheiratet)', 'Klasse 5', 'Klasse 6'],
   churchTax: ['Ja', 'Nein'],
-  numberOfChildren: ['0', '1', '2', '3+'],
+  numberOfChildren: ['Keine Kinder', '1 Kind', '2 Kinder', '3+ Kinder'],
 
   // summary stage confirmation
   _summary_confirm: ['Ja', 'Etwas ändern'],
