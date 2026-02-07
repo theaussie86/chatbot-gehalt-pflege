@@ -349,17 +349,17 @@ export class VectorstoreService {
     try {
       // Build a specific query for tariff data
       const tarifName = tarif === 'tvoed' ? 'TVöD' : tarif === 'tv-l' ? 'TV-L' : 'AVR';
-      const query = `${tarifName} Entgeltgruppe ${group} Stufe ${stufe} Gehalt Bruttogehalt monatlich`;
+      const query = `Entgelttabelle ${tarifName} Tabelle Monatswerte ${group} Stufe ${stufe} Euro Bruttogehalt`;
 
       console.log('[VectorstoreService] Tariff query:', query);
 
-      // Query with higher match count to find relevant tariff tables
+      // Query with higher match count to find tariff tables among other document chunks
       const embedding = await this.generateEmbedding(query);
 
       const { data: results, error } = await this.supabase.rpc('match_documents_with_metadata', {
         query_embedding: embedding,
-        match_threshold: 0.4, // Lower threshold to catch tariff tables
-        match_count: 5,
+        match_threshold: 0.35, // Lower threshold to catch tariff tables with numeric content
+        match_count: 10,
         filter_project_id: projectId
       });
 
@@ -373,12 +373,16 @@ export class VectorstoreService {
         return { success: false, error: 'No tariff documents found' };
       }
 
-      // Combine relevant chunks for extraction
-      const context = results
+      // Prioritize chunks that contain actual table data (pipe-separated rows)
+      const tableChunks = results.filter((r: any) => r.content.includes('|') && /\d{4}[.,]\d{2}/.test(r.content));
+      const otherChunks = results.filter((r: any) => !tableChunks.includes(r));
+      const prioritized = [...tableChunks, ...otherChunks].slice(0, 5);
+
+      const context = prioritized
         .map((r: any) => r.content)
         .join('\n\n---\n\n');
 
-      console.log('[VectorstoreService] Found', results.length, 'chunks for tariff extraction');
+      console.log('[VectorstoreService] Found', results.length, 'chunks,', tableChunks.length, 'with table data');
 
       // Use Gemini to extract the specific salary value
       const extractionPrompt = `
@@ -393,8 +397,11 @@ Aufgabe: Finde das monatliche Bruttogehalt für:
 - Stufe: ${stufe}
 
 WICHTIG:
-- Suche nach einer Tabelle oder Liste mit Gehaltswerten
+- Die Tabellen haben Spaltenüberschriften wie "1", "2", "3", "4", "5", "6" — diese entsprechen Stufe 1, Stufe 2, Stufe 3 usw.
+- Die Zeilen beginnen mit der Entgeltgruppe (z.B. "P 11", "P 7")
+- Finde die Zeile für Entgeltgruppe ${group} und lies den Wert in der Spalte ${stufe} (= Stufe ${stufe})
 - Das Gehalt sollte ein monatlicher Bruttobetrag sein (typisch zwischen 2.500€ und 7.000€)
+- Wenn es mehrere Tabellen für verschiedene Jahre gibt, verwende die aktuellste
 - Wenn du den exakten Wert findest, gib ihn zurück
 - Wenn du keinen passenden Wert findest, gib null zurück
 
