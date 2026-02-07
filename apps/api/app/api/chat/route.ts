@@ -161,7 +161,7 @@ export async function POST(request: Request) {
         // --- HYBRID STATE MACHINE LOGIC ---
         const { currentFormState } = body as { currentFormState?: FormState };
         if (currentFormState) {
-            const { getGeminiClient } = await import("../../../lib/gemini");
+            const { getGeminiClient, generateWithRetry } = await import("../../../lib/gemini");
             const { SalaryStateMachine } = await import("../../../lib/salary-flow");
             const client = getGeminiClient();
 
@@ -218,7 +218,7 @@ export async function POST(request: Request) {
                     Wenn er eine neue Berechnung möchte, erkläre ihm, dass er einen neuen Chat starten kann.
                     Halte dich kurz.
                 `;
-                const responseResult = await client.models.generateContent({
+                const responseResult = await generateWithRetry(client, {
                     model: 'gemini-2.5-flash',
                     contents: responsePrompt
                 });
@@ -310,7 +310,7 @@ WICHTIG:
 Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                 `;
 
-                const responseResult = await client.models.generateContent({
+                const responseResult = await generateWithRetry(client, {
                     model: 'gemini-2.5-flash',
                     contents: questionPrompt
                 });
@@ -336,7 +336,7 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
 
                         Erkläre kurz, dass noch Informationen fehlen und frage danach.
                     `;
-                    const responseResult = await client.models.generateContent({
+                    const responseResult = await generateWithRetry(client, {
                         model: 'gemini-2.5-flash',
                         contents: errorPrompt
                     });
@@ -548,7 +548,7 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
 
                         Entschuldige dich höflich und bitte den Nutzer, die Daten zu überprüfen.
                     `;
-                    const responseResult = await client.models.generateContent({
+                    const responseResult = await generateWithRetry(client, {
                         model: 'gemini-2.5-flash',
                         contents: errorPrompt
                     });
@@ -582,7 +582,7 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                 `;
 
                 try {
-                    const modResult = await client.models.generateContent({
+                    const modResult = await generateWithRetry(client, {
                         model: 'gemini-2.5-flash',
                         contents: modificationPrompt,
                         config: { responseMimeType: 'application/json' }
@@ -654,7 +654,7 @@ Beispiel-Antwort:
 Halte dich kurz (1-2 Sätze).
                                 `;
 
-                                const escalationResponse = await client.models.generateContent({
+                                const escalationResponse = await generateWithRetry(client, {
                                     model: 'gemini-2.5-flash',
                                     contents: escalationPrompt
                                 });
@@ -681,7 +681,7 @@ Halte dich kurz (1-2 Sätze).
 
                     Frage höflich nach, welchen Wert der Nutzer ändern möchte.
                 `;
-                const responseResult = await client.models.generateContent({
+                const responseResult = await generateWithRetry(client, {
                     model: 'gemini-2.5-flash',
                     contents: clarifyPrompt
                 });
@@ -730,7 +730,7 @@ Halte dich kurz (1-2 Sätze).
                 `;
 
                 try {
-                    const result = await client.models.generateContent({
+                    const result = await generateWithRetry(client, {
                         model: 'gemini-2.5-flash',
                         contents: extractPrompt,
                         config: { responseMimeType: 'application/json' }
@@ -799,7 +799,7 @@ Beispiel-Antwort:
 Halte dich kurz (1-2 Sätze).
                                     `;
 
-                                    const escalationResponse = await client.models.generateContent({
+                                    const escalationResponse = await generateWithRetry(client, {
                                         model: 'gemini-2.5-flash',
                                         contents: escalationPrompt
                                     });
@@ -850,7 +850,7 @@ WICHTIG:
 - Halte dich kurz (2-3 Sätze)
                 `;
 
-                const rePromptResult = await client.models.generateContent({
+                const rePromptResult = await generateWithRetry(client, {
                     model: 'gemini-2.5-flash',
                     contents: rePromptContent
                 });
@@ -904,7 +904,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                 progress
             );
 
-            const responseResult = await client.models.generateContent({
+            const responseResult = await generateWithRetry(client, {
                  model: 'gemini-2.5-flash',
                  contents: userFriendlyPrompt
             });

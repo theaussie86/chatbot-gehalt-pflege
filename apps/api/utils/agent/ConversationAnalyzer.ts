@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { generateWithRetry } from '../../lib/gemini';
 import type { FormState } from '../../types/form';
 import { getGeminiClient } from '../../lib/gemini';
 
@@ -141,7 +142,7 @@ Respond with JSON only:
 }
 `;
 
-      const result = await this.genAI.models.generateContent({
+      const result = await generateWithRetry(this.genAI, {
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' }

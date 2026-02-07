@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { GoogleGenAI } from '@google/genai';
+import { generateWithRetry } from '../gemini';
 import { getGeminiClient } from '../gemini';
 
 export class VectorstoreService {
@@ -122,7 +123,7 @@ export class VectorstoreService {
   async extractTextFromFile(fileUri: string, mimeType: string): Promise<string> {
     try {
       // Use Gemini 2.5 Flash for efficient text extraction
-      const result = await this.genAI.models.generateContent({
+      const result = await generateWithRetry(this.genAI, {
         model: "gemini-2.5-flash",
         contents: [
           {
@@ -414,7 +415,7 @@ Antworte NUR mit JSON:
 }
 `;
 
-      const extractResult = await this.genAI.models.generateContent({
+      const extractResult = await generateWithRetry(this.genAI, {
         model: 'gemini-2.5-flash',
         contents: extractionPrompt,
         config: { responseMimeType: 'application/json' }

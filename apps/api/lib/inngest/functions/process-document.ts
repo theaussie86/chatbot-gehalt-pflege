@@ -1,7 +1,7 @@
 import { inngest } from "../client";
 import { createClient } from "@supabase/supabase-js";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
-import { getGeminiClient } from "@/lib/gemini";
+import { getGeminiClient, generateWithRetry } from "@/lib/gemini";
 
 // --- Configuration ---
 const GEMINI_MODEL_EXTRACT = "gemini-2.5-flash";
@@ -480,7 +480,7 @@ export const processDocument = inngest.createFunction(
 
         // Extract text using inline base64 data (Vertex AI doesn't support file uploads)
         const extractionPrompt = getExtractionPrompt(fileBlob.mimeType);
-        const extractResult = await genAI.models.generateContent({
+        const extractResult = await generateWithRetry(genAI, {
           model: GEMINI_MODEL_EXTRACT,
           contents: [
             {

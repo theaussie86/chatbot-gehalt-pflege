@@ -1,5 +1,5 @@
 import { FormState } from "../types/form";
-import { getGeminiClient } from "./gemini";
+import { getGeminiClient, generateWithRetry } from "./gemini";
 
 /**
  * Predefined suggestion chips organized by field.
@@ -172,7 +172,7 @@ WICHTIG: Halte die Labels sehr kurz und prägnant. Keine ganzen Sätze.
     );
 
     const generationPromise = (async () => {
-      const result = await client.models.generateContent({
+      const result = await generateWithRetry(client, {
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
