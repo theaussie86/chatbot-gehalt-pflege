@@ -17,6 +17,30 @@ interface Citation {
 import { TaxWrapper, type SalaryInput } from "../../../utils/tax";
 import { generateSuggestions, generateEscalationChips } from "../../../lib/suggestions";
 
+/**
+ * Build a chat response with PROGRESS tags stripped from text.
+ * Progress is extracted and returned as a separate JSON field.
+ */
+function buildChatResponse(
+  text: string,
+  formState: FormState,
+  extras?: { suggestions?: string[]; inquiryId?: string | null }
+) {
+  // Extract progress value from first match
+  const progressMatch = text.match(/\[PROGRESS:\s*(\d+)%?\]/);
+  const progress = progressMatch ? parseInt(progressMatch[1], 10) : null;
+
+  // Strip ALL progress tags from text (handles %, duplicates, AI-generated variants)
+  const cleanText = text.replace(/\[PROGRESS:\s*\d+%?\]/g, '').trim();
+
+  return NextResponse.json({
+    text: cleanText,
+    formState,
+    progress,
+    ...extras,
+  });
+}
+
 // Lazy Initialize Supabase Admin Client
 let supabaseAdminInstance: SupabaseClient | null = null;
 
@@ -200,9 +224,7 @@ export async function POST(request: Request) {
                 });
                 const responseText = responseResult.text || '';
 
-                return NextResponse.json({
-                    text: responseText,
-                    formState: nextFormState,
+                return buildChatResponse(responseText, nextFormState, {
                     suggestions: await generateSuggestions(nextFormState, responseText)
                 });
             }
@@ -299,9 +321,7 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                     responseText += `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
                 }
 
-                return NextResponse.json({
-                    text: responseText,
-                    formState: nextFormState,
+                return buildChatResponse(responseText, nextFormState, {
                     suggestions: await generateSuggestions(nextFormState, responseText)
                 });
             }
@@ -320,9 +340,7 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                         model: 'gemini-2.5-flash',
                         contents: errorPrompt
                     });
-                    return NextResponse.json({
-                        text: responseResult.text || '',
-                        formState: nextFormState,
+                    return buildChatResponse(responseResult.text || '', nextFormState, {
                         suggestions: await generateSuggestions(nextFormState, responseResult.text || '')
                     });
                 }
@@ -516,9 +534,7 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                     };
                     nextFormState.missingFields = [];
 
-                    return NextResponse.json({
-                        text: formattedResult + '\n\n[PROGRESS: 100]',
-                        formState: nextFormState,
+                    return buildChatResponse(formattedResult + '\n\n[PROGRESS: 100]', nextFormState, {
                         inquiryId: saveResult.data?.id || null,
                         suggestions: await generateSuggestions(nextFormState, formattedResult)
                     });
@@ -536,9 +552,7 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                         model: 'gemini-2.5-flash',
                         contents: errorPrompt
                     });
-                    return NextResponse.json({
-                        text: responseResult.text || '',
-                        formState: nextFormState,
+                    return buildChatResponse(responseResult.text || '', nextFormState, {
                         suggestions: await generateSuggestions(nextFormState, responseResult.text || '')
                     });
                 }
@@ -607,9 +621,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
 [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                             `;
 
-                            return NextResponse.json({
-                                text: summaryResponse,
-                                formState: nextFormState,
+                            return buildChatResponse(summaryResponse, nextFormState, {
                                 suggestions: await generateSuggestions(nextFormState, summaryResponse)
                             });
                         } else {
@@ -650,9 +662,7 @@ Halte dich kurz (1-2 Sätze).
                                 const escalationText = (escalationResponse.text || '') +
                                     `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
 
-                                return NextResponse.json({
-                                    text: escalationText,
-                                    formState: nextFormState,
+                                return buildChatResponse(escalationText, nextFormState, {
                                     suggestions: escalationChips
                                 });
                             }
@@ -676,9 +686,7 @@ Halte dich kurz (1-2 Sätze).
                     contents: clarifyPrompt
                 });
                 const clarifyText = (responseResult.text || '') + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
-                return NextResponse.json({
-                    text: clarifyText,
-                    formState: nextFormState,
+                return buildChatResponse(clarifyText, nextFormState, {
                     suggestions: await generateSuggestions(nextFormState, clarifyText)
                 });
             }
@@ -799,9 +807,7 @@ Halte dich kurz (1-2 Sätze).
                                     const escalationText = (escalationResponse.text || '') +
                                         `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
 
-                                    return NextResponse.json({
-                                        text: escalationText,
-                                        formState: nextFormState,
+                                    return buildChatResponse(escalationText, nextFormState, {
                                         suggestions: escalationChips
                                     });
                                 }
@@ -852,9 +858,7 @@ WICHTIG:
                 const rePromptText = (rePromptResult.text || '') +
                     `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
 
-                return NextResponse.json({
-                    text: rePromptText,
-                    formState: nextFormState,
+                return buildChatResponse(rePromptText, nextFormState, {
                     suggestions: await generateSuggestions(nextFormState, rePromptText)
                 });
             }
@@ -883,9 +887,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
 [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                 `;
 
-                return NextResponse.json({
-                    text: summaryResponse,
-                    formState: nextFormState,
+                return buildChatResponse(summaryResponse, nextFormState, {
                     suggestions: await generateSuggestions(nextFormState, summaryResponse)
                 });
             }
@@ -913,9 +915,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                 responseText += `\n\n[PROGRESS: ${progress}]`;
             }
 
-            return NextResponse.json({
-                text: responseText,
-                formState: nextFormState,
+            return buildChatResponse(responseText, nextFormState, {
                 suggestions: await generateSuggestions(nextFormState, responseText)
             });
         }

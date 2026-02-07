@@ -91,13 +91,13 @@ export default function App({ config }: AppProps) {
     let resultData = null;
     let options: string[] | undefined = undefined;
 
-    // 1. Extract Progress Tag: [PROGRESS: 50]
-    const progressMatch = cleanText.match(/\[PROGRESS:\s*(\d+)\]/);
+    // 1. Extract Progress Tag: [PROGRESS: 50] or [PROGRESS: 50%]
+    const progressMatch = cleanText.match(/\[PROGRESS:\s*(\d+)%?\]/);
     if (progressMatch) {
       newProgress = parseInt(progressMatch[1], 10);
     }
-    // Strip ALL occurrences (handles duplicates from AI + backend)
-    cleanText = cleanText.replace(/\[PROGRESS:\s*\d+\]/g, '');
+    // Strip ALL occurrences (handles %, duplicates from AI + backend)
+    cleanText = cleanText.replace(/\[PROGRESS:\s*\d+%?\]/g, '');
 
     // 2. Extract Options Tag: [OPTIONS: ["A", "B"]]
     const optionsMatch = cleanText.match(/\[OPTIONS:\s*(\[.*?\])\]/);
@@ -147,7 +147,7 @@ export default function App({ config }: AppProps) {
 
     try {
       // Get AI response with current form state and session ID for draft persistence
-      const { text: rawText, formState: newFormState, inquiryId: newInquiryId, suggestions: newSuggestions } = await sendMessageToGemini(
+      const { text: rawText, formState: newFormState, inquiryId: newInquiryId, suggestions: newSuggestions, progress: serverProgress } = await sendMessageToGemini(
         textToSend,
         messages,
         formState,
@@ -156,11 +156,13 @@ export default function App({ config }: AppProps) {
 
       const { cleanText, newProgress, resultData, options } = parseResponse(rawText);
 
-      const finalProgress = newProgress !== null ? newProgress : progress;
+      // Prefer server-provided progress over client-parsed
+      const effectiveProgress = serverProgress ?? newProgress;
+      const finalProgress = effectiveProgress !== null && effectiveProgress !== undefined ? effectiveProgress : progress;
       const finalFormState = newFormState || formState;
 
-      if (newProgress !== null) {
-        setProgress(newProgress);
+      if (effectiveProgress !== null && effectiveProgress !== undefined) {
+        setProgress(effectiveProgress);
       }
 
       if (newFormState) {

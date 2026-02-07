@@ -8,7 +8,7 @@ import { getGeminiClient } from "./gemini";
 const PREDEFINED_CHIPS: Record<string, string[]> = {
   // job_details stage
   tarif: ['TVöD', 'TV-L', 'AVR'],
-  experience: ['Stufe 1', 'Stufe 2', 'Stufe 3', 'Stufe 4', 'Stufe 5', 'Stufe 6'],
+  experience: ['Unter 1 Jahr', '1-3 Jahre', '3-6 Jahre', 'Über 6 Jahre'],
   hours: ['Vollzeit', 'Teilzeit'],
   state: ['NRW', 'Bayern', 'Baden-Württemberg', 'Hessen', 'Niedersachsen', 'Berlin'],
 
