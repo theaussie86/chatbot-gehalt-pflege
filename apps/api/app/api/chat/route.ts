@@ -706,7 +706,7 @@ Halte dich kurz (1-2 Sätze).
                       * Pflegefachkraft mit Zusatzaufgaben/Fachweiterbildung → P8
                       * Praxisanleiter/Wohnbereichsleitung → P9
                       * Stationsleitung/PDL → P10-P12
-                    - Berufserfahrung → experience (z.B. "5 Jahre" → "5")
+                    - Berufserfahrung → experience (z.B. "5 Jahre" → "5 Jahre", "Stufe 3" → "3", "8" → "8")
                     - Tarifvertrag → tarif (TVöD, TV-L, AVR, öffentlicher Dienst → tvoed)
                     - Arbeitszeit → hours (z.B. "Vollzeit" = 38.5, "30 Stunden" = 30, "Teilzeit 50%" = 19.25)
                     - Ort/Region → state (z.B. "NRW" = "Nordrhein-Westfalen")

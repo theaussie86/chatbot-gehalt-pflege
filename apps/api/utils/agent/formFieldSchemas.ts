@@ -122,7 +122,8 @@ export const experienceSchema = z.preprocess(
     if (match) {
       const num = parseInt(match[1], 10);
       // Map years to Stufe (approximate)
-      if (str.includes('jahr')) {
+      // Also treat num > 6 as years — Stufe can only be 1-6, so anything higher must be years
+      if (str.includes('jahr') || num > 6) {
         if (num <= 1) return '1';
         if (num <= 3) return '2';
         if (num <= 6) return '3';
