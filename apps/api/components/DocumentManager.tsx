@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { uploadDocumentAction, deleteDocumentAction, createDocumentRecordAction } from '@/app/actions/documents';
+import { uploadDocumentAction, deleteDocumentAction, createDocumentRecordAction, addUrlDocumentAction } from '@/app/actions/documents';
 import { createClient } from '@/utils/supabase/client';
 
 // Files larger than 1MB use direct browser upload to bypass Next.js server action limit
@@ -238,6 +238,21 @@ const DocumentDetailsPanel = ({
                 </p>
             </div>
 
+            {/* Source URL (for URL documents) */}
+            {document.source_url && (
+                <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Source URL</p>
+                    <a
+                        href={document.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline break-all"
+                    >
+                        {document.source_url}
+                    </a>
+                </div>
+            )}
+
             {/* Project Association */}
             <div className="space-y-2">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Project</p>
@@ -293,7 +308,7 @@ const DocumentDetailsPanel = ({
                     variant="outline"
                     className="flex-1"
                 >
-                    Download
+                    {document.source_url ? 'Open URL' : 'Download'}
                 </Button>
                 <Button
                     onClick={onDelete}
@@ -324,6 +339,7 @@ interface Document {
     created_at: string;
     project_id?: string | null;
     storage_path?: string;
+    source_url?: string | null;
     status: 'pending' | 'processing' | 'embedded' | 'error';
     chunk_count?: number | null;
     processing_stage?: string | null;
@@ -375,6 +391,9 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
 
     // URL cache with expiry tracking
     const [urlCache, setUrlCache] = useState<Map<string, { url: string, expiresAt: number }>>(new Map());
+
+    const [urlInput, setUrlInput] = useState('');
+    const [isAddingUrl, setIsAddingUrl] = useState(false);
 
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [feedbackText, setFeedbackText] = useState("");
@@ -753,6 +772,12 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
 
     // Handle view (open in new tab)
     const handleView = async (doc: Document) => {
+        // URL documents: open source URL directly
+        if (doc.source_url) {
+            window.open(doc.source_url, '_blank');
+            return;
+        }
+
         const cached = urlCache.get(doc.id);
         if (cached && cached.expiresAt > Date.now()) {
             window.open(cached.url, '_blank');
@@ -762,7 +787,7 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         const { getDocumentDownloadUrlAction } = await import('@/app/actions/documents');
         const result = await getDocumentDownloadUrlAction(doc.id);
         if (result.url) {
-            setUrlCache(prev => new Map(prev).set(doc.id, { url: result.url, expiresAt: result.expiresAt }));
+            setUrlCache(prev => new Map(prev).set(doc.id, { url: result.url, expiresAt: result.expiresAt! }));
             window.open(result.url, '_blank');
         } else if (result.error?.includes('expired')) {
             toast.error('Link expired. Click to generate new link.', {
@@ -773,8 +798,14 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
         }
     };
 
-    // Handle download (direct download with filename)
+    // Handle download (direct download with filename, or open URL for URL docs)
     const handleDownload = async (doc: Document) => {
+        // URL documents: open source URL directly
+        if (doc.source_url) {
+            window.open(doc.source_url, '_blank');
+            return;
+        }
+
         const { getDocumentDownloadUrlAction } = await import('@/app/actions/documents');
         const result = await getDocumentDownloadUrlAction(doc.id);
         if (result.url) {
@@ -830,6 +861,29 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
             toast.error(`Bulk delete failed: ${error.message}`, { id: toastId });
         } finally {
             setIsBulkDeleting(false);
+        }
+    };
+
+    const handleAddUrl = async () => {
+        const trimmedUrl = urlInput.trim();
+        if (!trimmedUrl) return;
+
+        setIsAddingUrl(true);
+        const toastId = toast.loading("Adding URL document...");
+
+        try {
+            const result = await addUrlDocumentAction(trimmedUrl, projectId || null);
+            if (result.error) {
+                toast.error(`Failed: ${result.error}`, { id: toastId });
+            } else {
+                toast.success("URL document added for processing", { id: toastId });
+                setUrlInput('');
+                router.refresh();
+            }
+        } catch (error: any) {
+            toast.error(`Error: ${error.message}`, { id: toastId });
+        } finally {
+            setIsAddingUrl(false);
         }
     };
 
@@ -933,9 +987,15 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                                             onClick={(e) => e.stopPropagation()}
                                             className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                         />
-                                    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v15a2 2 0 002 2z" />
-                                    </svg>
+                                    {doc.source_url ? (
+                                        <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v15a2 2 0 002 2z" />
+                                        </svg>
+                                    )}
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <button
@@ -1119,6 +1179,32 @@ export default function DocumentManager({ projectId, documents }: DocumentManage
                 {uploadError && (
                     <p className="text-red-500 text-sm mt-2">{uploadError}</p>
                 )}
+
+                {/* URL input section */}
+                <div className="mt-4">
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Add from URL</h3>
+                    <div className="flex gap-2">
+                        <input
+                            type="url"
+                            value={urlInput}
+                            onChange={(e) => setUrlInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleAddUrl(); }}
+                            placeholder="https://oeffentlicher-dienst.info/..."
+                            disabled={isAddingUrl}
+                            className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                        />
+                        <Button
+                            onClick={handleAddUrl}
+                            disabled={isAddingUrl || !urlInput.trim()}
+                            size="sm"
+                        >
+                            {isAddingUrl ? 'Adding...' : 'Add URL'}
+                        </Button>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Paste a URL to a salary table page to import it as a document
+                    </p>
+                </div>
             </div>
 
             {/* Confirmation Dialog (Action) */}

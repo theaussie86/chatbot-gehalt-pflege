@@ -12,6 +12,7 @@ const SUPPORTED_MIME_TYPES = [
   "text/plain",
   "text/markdown",
   "text/csv",
+  "text/html",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ] as const;
@@ -57,6 +58,25 @@ function getExtractionPrompt(mimeType: string): string {
 Convert tables to markdown table format with | separators.
 Preserve headers and data structure.
 Return only the extracted content, no explanations.`;
+  }
+
+  // For HTML documents, request section markers and preserve tables
+  if (mimeType === "text/html") {
+    return `Extract all meaningful content from this HTML page.
+Strip navigation, ads, scripts, headers, footers, and other boilerplate.
+IMPORTANT: Use [SECTION: title] delimiters between logical sections of the page.
+Preserve tables as complete markdown tables with | separators. Keep all numeric values exact.
+Do not split tables across sections — each table must be fully contained in one section.
+Return only the extracted content with section markers, no explanations.
+
+Example format:
+[SECTION: Entgelttabelle TVöD-P 2025]
+| Entgeltgruppe | Stufe 1 | Stufe 2 | Stufe 3 |
+| --- | --- | --- | --- |
+| P 5 | 2.928,99 | 3.102,43 | ... |
+
+[SECTION: Zulagen und Zuschläge]
+Content about allowances...`;
   }
 
   // For PDFs, request page markers for citation tracking
@@ -249,6 +269,117 @@ async function splitTextWithPageTracking(
   return pagedChunks;
 }
 
+// --- Section Marker Parsing (for HTML/structured content) ---
+
+interface SectionContent {
+  title: string;
+  content: string;
+}
+
+/**
+ * Parse [SECTION: title] markers from extracted text.
+ * Returns array of section content objects.
+ * If no markers found, returns empty array.
+ */
+function parseSectionMarkers(text: string): SectionContent[] {
+  const sectionRegex = /\[SECTION:\s*([^\]]+)\]/g;
+
+  const sections: SectionContent[] = [];
+  const matches: { title: string; index: number; fullMatch: string }[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = sectionRegex.exec(text)) !== null) {
+    matches.push({
+      title: match[1].trim(),
+      index: match.index,
+      fullMatch: match[0],
+    });
+  }
+
+  if (matches.length === 0) {
+    return [];
+  }
+
+  // Check for content before first marker
+  if (matches[0].index > 0) {
+    const beforeContent = text.substring(0, matches[0].index).trim();
+    if (beforeContent.length > 0) {
+      sections.push({ title: "Einleitung", content: beforeContent });
+    }
+  }
+
+  // Extract content between markers
+  for (let i = 0; i < matches.length; i++) {
+    const currentMatch = matches[i];
+    const markerEndIndex = currentMatch.index + currentMatch.fullMatch.length;
+    const contentEndIndex = i + 1 < matches.length ? matches[i + 1].index : text.length;
+    const content = text.substring(markerEndIndex, contentEndIndex).trim();
+
+    if (content.length > 0) {
+      sections.push({
+        title: currentMatch.title,
+        content,
+      });
+    }
+  }
+
+  return sections;
+}
+
+/**
+ * Split text into chunks with structure awareness.
+ * Keeps sections (especially tables) intact when possible.
+ * Prepends context header to every chunk.
+ */
+async function splitTextWithStructureAwareness(
+  text: string,
+  documentTitle: string,
+  maxChunkSize: number = 3000,
+  overlap: number = 200
+): Promise<PagedChunk[]> {
+  const sections = parseSectionMarkers(text);
+
+  // Fallback: if no sections found, treat entire text as one section
+  if (sections.length === 0) {
+    sections.push({ title: "Inhalt", content: text.trim() });
+  }
+
+  const chunks: PagedChunk[] = [];
+
+  for (const section of sections) {
+    const contextHeader = `Quelle: ${documentTitle} | Abschnitt: ${section.title}\n\n`;
+    const availableSize = maxChunkSize - contextHeader.length;
+
+    if (section.content.length <= availableSize) {
+      // Section fits in a single chunk — keep it atomic
+      chunks.push({
+        content: contextHeader + section.content,
+        pageStart: null,
+        pageEnd: null,
+      });
+    } else {
+      // Section too large — split with table-aware separators
+      const splitter = new RecursiveCharacterTextSplitter({
+        chunkSize: availableSize,
+        chunkOverlap: overlap,
+        separators: ["\n\n", "\n", "| ", " ", ""],
+      });
+
+      const subChunks = await splitter.splitText(section.content);
+
+      for (const subChunk of subChunks) {
+        chunks.push({
+          content: contextHeader + subChunk,
+          pageStart: null,
+          pageEnd: null,
+        });
+      }
+    }
+  }
+
+  return chunks;
+}
+
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
@@ -266,10 +397,10 @@ export const processDocument = inngest.createFunction(
   },
   { event: "document/process" },
   async ({ event, step }) => {
-    const { documentId, filename, mimeType, storagePath } = event.data;
+    const { documentId, filename, mimeType, storagePath, sourceUrl } = event.data;
 
     try {
-      // Step 1: Download file from Supabase Storage
+      // Step 1: Download file from Supabase Storage or fetch from URL
       const fileBlob = await step.run("download-file", async () => {
         const supabase = getSupabaseClient();
 
@@ -278,6 +409,34 @@ export const processDocument = inngest.createFunction(
           .from("documents")
           .update({ status: "processing", processing_stage: "downloading file" })
           .eq("id", documentId);
+
+        if (sourceUrl) {
+          // URL document: fetch HTML content
+          const response = await fetch(sourceUrl, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (compatible; GehaltPflegeBot/1.0)",
+              "Accept": "text/html,application/xhtml+xml",
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
+          }
+
+          const html = await response.text();
+          const base64 = Buffer.from(html, "utf-8").toString("base64");
+
+          return {
+            base64,
+            size: html.length,
+            mimeType: "text/html" as string,
+          };
+        }
+
+        // File upload: download from Supabase Storage
+        if (!storagePath) {
+          throw new Error("Document has neither sourceUrl nor storagePath");
+        }
 
         const { data, error } = await supabase.storage
           .from("project-files")
@@ -292,7 +451,7 @@ export const processDocument = inngest.createFunction(
         if (!SUPPORTED_MIME_TYPES.includes(actualMimeType as SupportedMimeType)) {
           throw new Error(
             `Unsupported file type: ${actualMimeType}. ` +
-              `Supported formats: PDF, plain text (.txt, .md), spreadsheets (.csv, .xlsx)`
+              `Supported formats: PDF, plain text (.txt, .md), spreadsheets (.csv, .xlsx), HTML`
           );
         }
 
@@ -363,7 +522,7 @@ export const processDocument = inngest.createFunction(
         return text;
       });
 
-      // Step 3: Parse page markers and chunk text with page tracking
+      // Step 3: Parse markers and chunk text (structure-aware for HTML, page-tracked for PDFs)
       const pagedChunks = await step.run("chunk-text", async () => {
         const supabase = getSupabaseClient();
 
@@ -372,14 +531,25 @@ export const processDocument = inngest.createFunction(
           .update({ processing_stage: "chunking text" })
           .eq("id", documentId);
 
-        // Parse page markers from extracted text
-        const pagedContent = parsePageMarkers(textContent);
-        const hasPageMarkers = pagedContent.some(p => p.pageNumber !== null);
-        console.log(`Parsed ${pagedContent.length} page sections, hasPageMarkers: ${hasPageMarkers}`);
+        // Check for [SECTION:] markers (from HTML extraction)
+        const hasSectionMarkers = /\[SECTION:\s*[^\]]+\]/.test(textContent);
 
-        // Split text into chunks while tracking page boundaries
-        const result = await splitTextWithPageTracking(pagedContent, 2000, 100);
-        console.log(`Generated ${result.length} chunks with page tracking`);
+        let result: PagedChunk[];
+
+        if (hasSectionMarkers) {
+          // Structure-aware chunking for HTML/structured content
+          console.log("Using structure-aware chunking (section markers detected)");
+          result = await splitTextWithStructureAwareness(textContent, filename, 3000, 200);
+          console.log(`Generated ${result.length} structure-aware chunks`);
+        } else {
+          // Existing page-tracked chunking for PDFs and other documents
+          const pagedContent = parsePageMarkers(textContent);
+          const hasPageMarkers = pagedContent.some(p => p.pageNumber !== null);
+          console.log(`Parsed ${pagedContent.length} page sections, hasPageMarkers: ${hasPageMarkers}`);
+
+          result = await splitTextWithPageTracking(pagedContent, 2000, 100);
+          console.log(`Generated ${result.length} chunks with page tracking`);
+        }
 
         if (result.length === 0) {
           throw new Error("Document produced no chunks after splitting");

@@ -27,6 +27,7 @@ const ALLOWED_MIME_TYPES = [
     'application/pdf',
     'text/plain',
     'text/csv',
+    'text/html',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
     'application/vnd.ms-excel', // xls
 ];

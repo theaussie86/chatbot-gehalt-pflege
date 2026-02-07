@@ -7,7 +7,8 @@ type DocumentEvents = {
       projectId: string | null;
       filename: string;
       mimeType: string;
-      storagePath: string;
+      storagePath?: string;
+      sourceUrl?: string;
     };
   };
 };

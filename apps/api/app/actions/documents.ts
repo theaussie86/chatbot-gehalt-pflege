@@ -62,6 +62,68 @@ export async function uploadDocumentAction(formData: FormData) {
     }
 }
 
+export async function addUrlDocumentAction(url: string, projectId: string | null) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Unauthorized");
+
+        // Validate URL
+        let parsed: URL;
+        try {
+            parsed = new URL(url);
+        } catch {
+            return { error: "Invalid URL format", code: "ERR_INVALID_URL" };
+        }
+        if (!["http:", "https:"].includes(parsed.protocol)) {
+            return { error: "Only http and https URLs are supported", code: "ERR_INVALID_URL" };
+        }
+
+        // Derive filename from URL
+        const pathSegment = parsed.pathname.replace(/\/$/, "").split("/").pop() || "index";
+        const filename = `${parsed.hostname}/${pathSegment}`.replace(/[^a-zA-Z0-9._\-\/]/g, "_");
+
+        // Insert document record with source_url, no storage_path
+        const { data: document, error: dbError } = await supabase
+            .from("documents")
+            .insert({
+                filename,
+                mime_type: "text/html",
+                project_id: projectId || null,
+                storage_path: null,
+                source_url: url,
+                status: "pending",
+            })
+            .select()
+            .single();
+
+        if (dbError) {
+            throw new Error(`Database error: ${dbError.message}`);
+        }
+
+        // Trigger Inngest processing
+        await inngest.send({
+            name: "document/process",
+            data: {
+                documentId: document.id,
+                projectId: projectId,
+                filename,
+                mimeType: "text/html",
+                sourceUrl: url,
+            },
+        });
+
+        if (projectId) {
+            revalidatePath(`/projects/${projectId}`);
+        }
+        revalidatePath("/documents");
+        return { success: true, document };
+    } catch (error: any) {
+        console.error("Add URL Document Error", error);
+        return { error: error.message || "Unknown error occurred", code: "ERR_UNKNOWN" };
+    }
+}
+
 export async function deleteDocumentAction(documentId: string, projectId: string) {
     try {
         const supabase = await createClient();
@@ -94,7 +156,7 @@ export async function getDocumentDownloadUrlAction(documentId: string) {
         // RLS ensures we only see documents we have access to
         const { data: document, error: fetchError } = await supabase
             .from("documents")
-            .select("storage_path") // removed user_id from select
+            .select("storage_path, source_url")
             .eq("id", documentId)
             .single();
 
@@ -102,7 +164,13 @@ export async function getDocumentDownloadUrlAction(documentId: string) {
             throw new Error("Document not found");
         }
 
-        // Removed manual user_id check
+        // URL documents: return source URL directly
+        if (!document.storage_path && document.source_url) {
+            return {
+                url: document.source_url,
+                expiresAt: Date.now() + 86400 * 1000 // URLs don't expire, but keep consistent shape
+            };
+        }
 
         if (!document.storage_path) {
             throw new Error("Document has no storage path");
@@ -204,7 +272,7 @@ export async function reprocessDocumentAction(documentId: string) {
         // 1. Fetch current document to get existing error_details and required fields
         const { data: doc } = await supabase
             .from("documents")
-            .select("error_details, project_id, filename, mime_type, storage_path")
+            .select("error_details, project_id, filename, mime_type, storage_path, source_url")
             .eq("id", documentId)
             .single();
 
@@ -247,7 +315,8 @@ export async function reprocessDocumentAction(documentId: string) {
                     projectId: doc.project_id,
                     filename: doc.filename,
                     mimeType: doc.mime_type,
-                    storagePath: doc.storage_path,
+                    storagePath: doc.storage_path || undefined,
+                    sourceUrl: doc.source_url || undefined,
                 },
             });
         }
