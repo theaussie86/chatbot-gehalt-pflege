@@ -38,7 +38,7 @@ export default function ProjectList({ projects }: { projects: Project[] }) {
         </button>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 shadow overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 shadow overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
