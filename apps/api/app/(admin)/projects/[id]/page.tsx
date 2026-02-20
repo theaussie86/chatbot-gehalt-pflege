@@ -111,12 +111,15 @@ export default async function ProjectDetailsPage({ params }: { params: Promise<{
                             </div>
                              <div>
                                 <label className="block text-sm font-medium text-gray-500">Allowed Origins</label>
-                                 <code className="block mt-1 p-2 bg-gray-50 dark:bg-gray-900 rounded border dark:border-gray-700 text-sm">
-                                    {project.allowed_origins && project.allowed_origins.length > 0
-                                        ? project.allowed_origins.join(', ')
-                                        : 'All origins allowed (Development)'
-                                    }
-                                </code>
+                                {project.allowed_origins && project.allowed_origins.length > 0 ? (
+                                    <code className="block mt-1 p-2 bg-gray-50 dark:bg-gray-900 rounded border dark:border-gray-700 text-sm">
+                                        {project.allowed_origins.join(', ')}
+                                    </code>
+                                ) : (
+                                    <div className="mt-1 p-2 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded text-sm text-amber-800 dark:text-amber-300">
+                                        ⚠️ No origins configured — requests from any origin are accepted. Add allowed origins to restrict access.
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

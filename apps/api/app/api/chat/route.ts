@@ -62,16 +62,19 @@ export async function POST(request: Request) {
         // Look for 'projectId' specifically. 
         const { message, history, projectId, apiKey, sessionId } = body;
         const origin = request.headers.get('origin');
-        const ip = request.headers.get('x-forwarded-for') || 'unknown';
+        const ip = (request.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'unknown';
+
+        if (!message || typeof message !== 'string') {
+            return NextResponse.json({ error: "message is required and must be a string" }, { status: 400 });
+        }
+        if (message.length > 2000) {
+            return NextResponse.json({ error: "message exceeds maximum length of 2000 characters" }, { status: 400 });
+        }
+        const validatedHistory = Array.isArray(history) ? history : [];
 
         // Prefer 'projectId', fallback to 'apiKey' (legacy)
-        let activeProjectId = projectId || apiKey;
+        const activeProjectId = projectId || apiKey;
         
-        // Fallback to server-side env key if client key is missing or placeholder
-        if (!activeProjectId || activeProjectId === 'DEMO') {
-            activeProjectId = process.env.GEMINI_API_KEY;
-        }
-
         if (!activeProjectId) {
             return NextResponse.json(
                 { error: "Project ID is required" },
@@ -98,62 +101,63 @@ export async function POST(request: Request) {
         // Log this request
         getSupabaseAdmin().from('request_logs').insert({
             ip_address: ip,
-            public_key: activeProjectId !== process.env.GEMINI_API_KEY ? activeProjectId : 'system_demo'
+            public_key: activeProjectId
         }).then();
 
-        // 2. Domain Whitelisting / Origin Check & Custom Key Fetching
-        
+        // 2. Project lookup, Origin Check & Document Injection
+
         let fileContextMessages: Content[] = [];
 
-        if (activeProjectId !== process.env.GEMINI_API_KEY && activeProjectId !== 'DEMO') {
-             const { data: project, error: projectError } = await getSupabaseAdmin()
-                .from('projects')
-                .select('id, allowed_origins, gemini_api_key') // removed user_id
-                .eq('public_key', activeProjectId)
-                .single();
+        const { data: project, error: projectError } = await getSupabaseAdmin()
+            .from('projects')
+            .select('id, allowed_origins, gemini_api_key')
+            .eq('public_key', activeProjectId)
+            .single();
 
-            if (!project || projectError) {
-                return NextResponse.json(
-                    { error: "Invalid Project ID" },
-                    { status: 403 }
-                );
-            }
+        if (!project || projectError) {
+            return NextResponse.json(
+                { error: "Invalid Project ID" },
+                { status: 403 }
+            );
+        }
 
-            const allowedOrigins = project.allowed_origins || [];
-            
-            if (origin && !allowedOrigins.includes(origin)) {
-                 return NextResponse.json(
-                    { error: `Origin '${origin}' not authorized for this Project ID` },
-                    { status: 403 }
-                );
-            }
+        const allowedOrigins = project.allowed_origins || [];
+        const normalizeOrigin = (o: string) => o.replace(/\/+$/, '');
+        const normalizedOrigin = origin ? normalizeOrigin(origin) : null;
+        const normalizedAllowedOrigins = allowedOrigins.map(normalizeOrigin);
 
-            // --- FETCH & INJECT DOCUMENTS (RAG) ---
-            const { data: documents } = await getSupabaseAdmin()
-                .from('documents')
-                .select('mime_type, google_file_uri')
-                .or(`project_id.eq.${project.id},project_id.is.null`);
+        if (normalizedAllowedOrigins.length > 0 && (!normalizedOrigin || !normalizedAllowedOrigins.includes(normalizedOrigin))) {
+            return NextResponse.json(
+                { error: `Origin '${origin}' not authorized for this Project ID` },
+                { status: 403 }
+            );
+        }
 
-            if (documents && documents.length > 0) {
-                 const fileParts = documents.map(doc => ({
-                    fileData: {
-                        mimeType: doc.mime_type || 'application/pdf',
-                        fileUri: doc.google_file_uri
-                    }
-                }));
+        // --- FETCH & INJECT DOCUMENTS (RAG) ---
+        const { data: documents } = await getSupabaseAdmin()
+            .from('documents')
+            .select('mime_type, google_file_uri')
+            .or(`project_id.eq.${project.id},project_id.is.null`);
 
-                const contextInstruction: Content = {
-                    role: 'user',
-                    parts: [...fileParts, { text: "Nutze diese hochgeladenen Dokumente als primäre Wissensquelle für deine Antworten im folgenden Gespräch. Beziehe dich explizit darauf, wenn es zur Frage passt." }]
-                };
-                
-                const modelAck: Content = {
-                    role: 'model',
-                    parts: [{ text: "Verstanden. Ich habe Zugriff auf die Dokumente und werde sie für die Beantwortung deiner Fragen verwenden." }]
-                };
-                
-                fileContextMessages = [contextInstruction, modelAck];
-            }
+        if (documents && documents.length > 0) {
+            const fileParts = documents.map(doc => ({
+                fileData: {
+                    mimeType: doc.mime_type || 'application/pdf',
+                    fileUri: doc.google_file_uri
+                }
+            }));
+
+            const contextInstruction: Content = {
+                role: 'user',
+                parts: [...fileParts, { text: "Nutze diese hochgeladenen Dokumente als primäre Wissensquelle für deine Antworten im folgenden Gespräch. Beziehe dich explizit darauf, wenn es zur Frage passt." }]
+            };
+
+            const modelAck: Content = {
+                role: 'model',
+                parts: [{ text: "Verstanden. Ich habe Zugriff auf die Dokumente und werde sie für die Beantwortung deiner Fragen verwenden." }]
+            };
+
+            fileContextMessages = [contextInstruction, modelAck];
         }
         
         // --- END SECURITY CHECKS ---
@@ -924,8 +928,8 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
         const agent = new GeminiAgent();
         
         const responseText = await agent.sendMessage(
-            message, 
-            history || [], 
+            message,
+            validatedHistory,
             fileContextMessages
         );
 

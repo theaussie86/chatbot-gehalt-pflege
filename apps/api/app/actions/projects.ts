@@ -49,8 +49,8 @@ export async function createProject(prevState: any, formData: FormData) {
     return { error: 'Name is required' };
   }
 
-  const allowed_origins = allowedOriginsStr 
-    ? allowedOriginsStr.split(',').map(o => o.trim()).filter(Boolean) 
+  const allowed_origins = allowedOriginsStr
+    ? allowedOriginsStr.split(',').map(o => o.trim().replace(/\/+$/, '')).filter(Boolean)
     : [];
 
   const publicKey = crypto.randomUUID();
@@ -89,8 +89,8 @@ export async function updateProject(prevState: any, formData: FormData) {
     return { error: 'Project ID is required' };
   }
 
-  const allowed_origins = allowedOriginsStr 
-    ? allowedOriginsStr.split(',').map(o => o.trim()).filter(Boolean) 
+  const allowed_origins = allowedOriginsStr
+    ? allowedOriginsStr.split(',').map(o => o.trim().replace(/\/+$/, '')).filter(Boolean)
     : [];
 
   const { error } = await supabase

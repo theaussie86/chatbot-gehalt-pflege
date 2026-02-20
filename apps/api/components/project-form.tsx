@@ -82,7 +82,7 @@ export default function ProjectForm({ project, onClose }: ProjectFormProps) {
               placeholder="https://example.com, https://app.example.com"
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Leave empty to block all origins (unless using API key server-side).
+              Leave empty to allow requests from any origin. Add origins to restrict access (e.g. https://example.com).
             </p>
           </div>
 
@@ -99,7 +99,7 @@ export default function ProjectForm({ project, onClose }: ProjectFormProps) {
               placeholder="AIzaSy..."
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Your custom Gemini API Key. If left empty, the system default might be used (if configured).
+              Your custom Gemini API Key (optional).
             </p>
           </div>
 
