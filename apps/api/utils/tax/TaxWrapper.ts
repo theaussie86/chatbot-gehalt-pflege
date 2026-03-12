@@ -1,6 +1,6 @@
 import { Lohnsteuer2025 } from './Lohnsteuer2025';
 import { Lohnsteuer2026 } from './Lohnsteuer2026';
-import { SalaryInput, TaxInput, TaxResult, TaxOutput } from './types';
+import { SalaryInput, TaxInput, TaxResult, TaxOutput, TaxResultWithAllowances } from './types';
 import { Big } from './TaxUtils';
 
 export class TaxWrapper {
@@ -276,5 +276,43 @@ export class TaxWrapper {
   
   private round(curr: number): number {
     return Math.round(curr * 100) / 100;
+  }
+
+  /**
+   * Calculate tax with employer-specific allowances
+   *
+   * This method handles the split between tax-free and taxable allowances:
+   * - Taxable allowances are added to the yearly salary before tax calculation
+   * - Tax-free allowances (§3b EStG surcharges) are added to netto after tax
+   *
+   * @param baseSalaryInput - Base salary input (without allowances)
+   * @param allowances - Split into taxFree and taxable amounts (monthly)
+   * @returns Extended tax result with allowances breakdown
+   */
+  public calculateWithAllowances(
+    baseSalaryInput: SalaryInput,
+    allowances: { taxFree: number; taxable: number }
+  ): TaxResultWithAllowances {
+    // 1. Add taxable allowances to yearly salary (monthly * 12)
+    const taxableYearlySalary = baseSalaryInput.yearlySalary + (allowances.taxable * 12);
+
+    // 2. Calculate taxes on the increased gross
+    const taxResult = this.calculate({
+      ...baseSalaryInput,
+      yearlySalary: taxableYearlySalary
+    });
+
+    // 3. Add tax-free allowances to netto (these are not taxed)
+    const nettoWithAllowances = taxResult.netto + allowances.taxFree;
+
+    return {
+      ...taxResult,
+      nettoWithAllowances: this.round(nettoWithAllowances),
+      allowanceBreakdown: {
+        taxFree: this.round(allowances.taxFree),
+        taxable: this.round(allowances.taxable),
+        totalMonthly: this.round(allowances.taxFree + allowances.taxable)
+      }
+    };
   }
 }

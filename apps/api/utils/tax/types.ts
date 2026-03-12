@@ -76,3 +76,21 @@ export interface TaxResult {
     pv: number; // approx derived/calculated
   };
 }
+
+/**
+ * Extended result including allowances calculation
+ * Used when calculating with employer-specific bonuses
+ */
+export interface TaxResultWithAllowances extends TaxResult {
+  /** Net income including tax-free allowances */
+  nettoWithAllowances: number;
+  /** Breakdown of allowances for display */
+  allowanceBreakdown: {
+    /** Total tax-free allowances (added to netto) */
+    taxFree: number;
+    /** Total taxable allowances (included in gross before tax) */
+    taxable: number;
+    /** Total monthly allowances */
+    totalMonthly: number;
+  };
+}

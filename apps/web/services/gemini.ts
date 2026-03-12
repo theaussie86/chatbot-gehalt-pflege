@@ -1,4 +1,4 @@
-import { Message, Sender, FormState } from "../types";
+import { SectionType } from "../types";
 
 interface ChatConfig {
   projectId: string;
@@ -13,10 +13,8 @@ export const initializeChat = (config: ChatConfig) => {
 
 export const sendMessageToGemini = async (
   userMessage: string,
-  history: Message[],
-  currentFormState?: FormState,
-  sessionId?: string
-): Promise<{ text: string; formState?: FormState; inquiryId?: string; suggestions?: string[]; progress?: number }> => {
+  sessionId: string
+): Promise<{ text: string; section?: SectionType; inquiryId?: string; suggestions?: string[]; progress?: number }> => {
   if (!currentConfig) {
     throw new Error("Chat not initialized with configuration.");
   }
@@ -29,10 +27,8 @@ export const sendMessageToGemini = async (
       },
       body: JSON.stringify({
         message: userMessage,
-        history: history, // Send full history including previous messages
-        projectId: currentConfig.projectId, // Sent as projectId for clarity
-        currentFormState: currentFormState, // Send current form state for state machine
-        sessionId: sessionId, // Session ID for server-side draft persistence
+        projectId: currentConfig.projectId,
+        sessionId: sessionId,
       }),
     });
 
@@ -45,7 +41,7 @@ export const sendMessageToGemini = async (
     const data = await response.json();
     return {
       text: data.text || "",
-      formState: data.formState,
+      section: data.section,
       inquiryId: data.inquiryId,
       suggestions: data.suggestions || [],
       progress: data.progress ?? undefined

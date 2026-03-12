@@ -13,28 +13,7 @@ declare global {
 
 const INITIAL_MESSAGE_TEXT = "Hallo! Ich bin dein Assistent für den TVöD-Pflege Gehaltsrechner. Ich helfe dir, dein Gehalt im Pflegebereich zu schätzen. \n\nFür welches Jahr möchtest du eine Berechnung durchführen?";
 
-// FormState type for state machine
-interface FormState {
-  section: 'job_details' | 'tax_details' | 'summary' | 'completed';
-  data: {
-    job_details?: Record<string, any>;
-    tax_details?: Record<string, any>;
-    calculation_result?: Record<string, any>;
-  };
-  missingFields: string[];
-  conversationContext?: string[];
-  userIntent?: string;
-  validationErrors?: Record<string, string>;
-}
-
-const DEFAULT_FORM_STATE: FormState = {
-  section: 'job_details',
-  data: {
-    job_details: {},
-    tax_details: {},
-  },
-  missingFields: ['tarif', 'group', 'experience', 'hours', 'state'],
-};
+type SectionType = 'job_details' | 'tax_details' | 'summary' | 'completed';
 
 // Generate UUID for session tracking
 function generateSessionId(): string {
@@ -56,8 +35,8 @@ export default function TestWidgetView({ projects }: { projects: Project[] }) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // State machine state for draft persistence
-  const [formState, setFormState] = useState<FormState>(DEFAULT_FORM_STATE);
+  // Server-side sessions: only track section locally for display
+  const [section, setSection] = useState<SectionType>('job_details');
   const [sessionId, setSessionId] = useState<string>(() => generateSessionId());
 
   // Refs for focus and auto-scroll
@@ -107,7 +86,7 @@ export default function TestWidgetView({ projects }: { projects: Project[] }) {
           sender: 'bot',
           text: INITIAL_MESSAGE_TEXT
       }]);
-      setFormState(DEFAULT_FORM_STATE);
+      setSection('job_details');
       setSessionId(generateSessionId());
   };
 
@@ -125,10 +104,8 @@ export default function TestWidgetView({ projects }: { projects: Project[] }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMsg.text,
-          history: messages, // Send history including initial message
           projectId: selectedProject.public_key,
-          currentFormState: formState, // Enable state machine flow
-          sessionId: sessionId // Enable draft persistence
+          sessionId: sessionId
         })
       });
 
@@ -138,9 +115,9 @@ export default function TestWidgetView({ projects }: { projects: Project[] }) {
          setMessages(prev => [...prev, { sender: 'bot', text: `Error: ${data.error}` }]);
       } else {
          setMessages(prev => [...prev, { sender: 'bot', text: data.text }]);
-         // Update formState from response for state machine continuity
-         if (data.formState) {
-           setFormState(data.formState);
+         // Update section from server response
+         if (data.section) {
+           setSection(data.section);
          }
       }
     } catch (e: any) {

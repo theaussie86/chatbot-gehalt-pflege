@@ -6,6 +6,8 @@ import type { FormState, UserIntent } from "../../../types/form";
 import { ConversationAnalyzer, type IntentAnalysis } from "../../../utils/agent/ConversationAnalyzer";
 import { fieldValidator, type FieldValidationResult } from "../../../utils/agent/FieldValidator";
 import { VectorstoreService, formatPageRange } from "../../../lib/vectorstore/VectorstoreService";
+import { BonusConfig, isBonusConfig } from "../../../types/bonus-config";
+import { AllowanceCalculator } from "../../../utils/allowances";
 
 // Citation type for admin traceability
 interface Citation {
@@ -16,6 +18,7 @@ interface Citation {
 }
 import { TaxWrapper, type SalaryInput } from "../../../utils/tax";
 import { generateSuggestions, generateEscalationChips } from "../../../lib/suggestions";
+import { loadSession, saveSession } from "../../../lib/chatSession";
 
 /**
  * Build a chat response with PROGRESS tags stripped from text.
@@ -35,7 +38,7 @@ function buildChatResponse(
 
   return NextResponse.json({
     text: cleanText,
-    formState,
+    section: formState.section,
     progress,
     ...extras,
   });
@@ -60,7 +63,7 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         // Look for 'projectId' specifically. 
-        const { message, history, projectId, apiKey, sessionId } = body;
+        const { message, projectId, apiKey, sessionId } = body;
         const origin = request.headers.get('origin');
         const ip = (request.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'unknown';
 
@@ -70,7 +73,7 @@ export async function POST(request: Request) {
         if (message.length > 2000) {
             return NextResponse.json({ error: "message exceeds maximum length of 2000 characters" }, { status: 400 });
         }
-        const validatedHistory = Array.isArray(history) ? history : [];
+        // History is now stored server-side in chat_sessions table
 
         // Prefer 'projectId', fallback to 'apiKey' (legacy)
         const activeProjectId = projectId || apiKey;
@@ -110,9 +113,14 @@ export async function POST(request: Request) {
 
         const { data: project, error: projectError } = await getSupabaseAdmin()
             .from('projects')
-            .select('id, allowed_origins, gemini_api_key')
+            .select('id, allowed_origins, gemini_api_key, bonus_config')
             .eq('public_key', activeProjectId)
             .single();
+
+        // Parse bonus_config if present
+        const bonusConfig: BonusConfig | null = project?.bonus_config && isBonusConfig(project.bonus_config)
+            ? project.bonus_config
+            : null;
 
         if (!project || projectError) {
             return NextResponse.json(
@@ -162,15 +170,15 @@ export async function POST(request: Request) {
         
         // --- END SECURITY CHECKS ---
 
-        // --- HYBRID STATE MACHINE LOGIC ---
-        const { currentFormState } = body as { currentFormState?: FormState };
-        if (currentFormState) {
+        // --- SERVER-SIDE SESSION: Load state from database ---
+        if (sessionId) {
             const { getGeminiClient, generateWithRetry } = await import("../../../lib/gemini");
             const { SalaryStateMachine } = await import("../../../lib/salary-flow");
             const client = getGeminiClient();
 
-            // Deep clone to avoid mutation
-            let nextFormState: FormState = JSON.parse(JSON.stringify(currentFormState));
+            // Load session from database (creates new if not found)
+            const sessionData = await loadSession(getSupabaseAdmin(), sessionId, activeProjectId);
+            let nextFormState: FormState = JSON.parse(JSON.stringify(sessionData.formState));
 
             // Initialize services
             const conversationAnalyzer = new ConversationAnalyzer();
@@ -228,6 +236,7 @@ export async function POST(request: Request) {
                 });
                 const responseText = responseResult.text || '';
 
+                await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, responseText);
                 return buildChatResponse(responseText, nextFormState, {
                     suggestions: await generateSuggestions(nextFormState, responseText)
                 });
@@ -311,7 +320,7 @@ WICHTIG:
 - Bei Unsicherheit: "Dazu habe ich keine Informationen in meinen Dokumenten."
 - NENNE KEINE QUELLENANGABEN in deiner Antwort (die werden intern gespeichert)
 
-Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
+Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState, bonusConfig)}]
                 `;
 
                 const responseResult = await generateWithRetry(client, {
@@ -322,9 +331,10 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
 
                 // Add progress marker if not present
                 if (!responseText.includes('[PROGRESS:')) {
-                    responseText += `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
+                    responseText += `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState, bonusConfig)}]`;
                 }
 
+                await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, responseText);
                 return buildChatResponse(responseText, nextFormState, {
                     suggestions: await generateSuggestions(nextFormState, responseText)
                 });
@@ -332,7 +342,7 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
 
             // --- US-013: HANDLE CONFIRMATION IN SUMMARY ---
             if (nextFormState.section === 'summary' && nextFormState.userIntent === 'confirmation') {
-                if (!SalaryStateMachine.isComplete(nextFormState)) {
+                if (!SalaryStateMachine.isComplete(nextFormState, bonusConfig)) {
                     // Should not happen, but handle gracefully
                     const errorPrompt = `
                         Du bist ein freundlicher Gehalts-Chatbot.
@@ -344,6 +354,7 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                         model: 'gemini-2.5-flash',
                         contents: errorPrompt
                     });
+                    await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, responseResult.text || '');
                     return buildChatResponse(responseResult.text || '', nextFormState, {
                         suggestions: await generateSuggestions(nextFormState, responseResult.text || '')
                     });
@@ -465,14 +476,70 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
 
                     console.log('[StateMachine] Calculating salary with input:', salaryInput);
 
-                    const calculationResult = taxWrapper.calculate(salaryInput);
-
                     // --- US-016: FORMAT RESULTS ---
                     // TaxResult returns monthly values already
                     const monthlyBrutto = salaryInput.yearlySalary / 12;
-                    const monthlyNetto = calculationResult.netto;
 
-                    const formattedResult = formatCalculationResult(calculationResult, jobData, taxData);
+                    // Calculate with or without allowances based on bonusConfig
+                    let finalNetto: number;
+                    let formattedResult: string;
+                    let allowancesData: import('../../../types/form').AllowancesBreakdown | undefined;
+                    let oneTimeBonusesData: import('../../../types/form').OneTimeBonuses | undefined;
+
+                    if (bonusConfig) {
+                        // --- DRK-SPECIFIC: Calculate with allowances ---
+                        const allowanceCalculator = new AllowanceCalculator(bonusConfig);
+                        const allowanceResult = allowanceCalculator.calculate(
+                            {
+                                nightShifts: jobData.nightShifts || 0,
+                                lateShifts: jobData.lateShifts || 0,
+                                weekendDays: jobData.weekendDays || 0,
+                                jumpInFrequency: jobData.jumpInFrequency || 0,
+                            },
+                            jobData.qualifications || [],
+                            jobData.employeeType || 'fachkraft',
+                            monthlyBrutto
+                        );
+
+                        // Calculate taxes with allowances
+                        const taxResultWithAllowances = taxWrapper.calculateWithAllowances(
+                            salaryInput,
+                            {
+                                taxFree: allowanceCalculator.getTaxFreeTotal(allowanceResult),
+                                taxable: allowanceCalculator.getTaxableTotal(allowanceResult)
+                            }
+                        );
+
+                        finalNetto = taxResultWithAllowances.nettoWithAllowances;
+                        allowancesData = allowanceCalculator.toFormStateBreakdown(allowanceResult);
+                        oneTimeBonusesData = allowanceResult.oneTimeBonuses;
+
+                        // Use formatResult from SalaryStateMachine for employer-specific display
+                        const calcResult = {
+                            brutto: monthlyBrutto,
+                            netto: taxResultWithAllowances.netto,
+                            taxes: taxResultWithAllowances.taxes.lohnsteuer + taxResultWithAllowances.taxes.soli + taxResultWithAllowances.taxes.kirchensteuer,
+                            socialContributions: taxResultWithAllowances.socialSecurity.kv + taxResultWithAllowances.socialSecurity.rv + taxResultWithAllowances.socialSecurity.av + taxResultWithAllowances.socialSecurity.pv,
+                            year: new Date().getFullYear(),
+                            allowances: allowancesData,
+                            oneTimeBonuses: oneTimeBonusesData,
+                            nettoWithAllowances: finalNetto
+                        };
+                        formattedResult = SalaryStateMachine.formatResult(calcResult, bonusConfig);
+
+                        console.log('[StateMachine] Calculated with allowances:', {
+                            baseSalary: monthlyBrutto,
+                            allowancesTotal: allowanceResult.total,
+                            taxFree: allowanceCalculator.getTaxFreeTotal(allowanceResult),
+                            taxable: allowanceCalculator.getTaxableTotal(allowanceResult),
+                            finalNetto
+                        });
+                    } else {
+                        // Standard calculation without allowances
+                        const calculationResult = taxWrapper.calculate(salaryInput);
+                        finalNetto = calculationResult.netto;
+                        formattedResult = formatCalculationResult(calculationResult, jobData, taxData);
+                    }
 
                     // --- US-017: SAVE TO DATABASE WITH CITATIONS ---
                     // Consolidate citations by document (merge pages from same document)
@@ -498,15 +565,16 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                         tarif: jobData.tarif || 'tvoed',
                         jahr: String(new Date().getFullYear()),  // Column is text type
                         brutto: monthlyBrutto,
-                        netto: monthlyNetto,
+                        netto: finalNetto,
                         status: 'completed',
                         last_section: 'completed',
                         details: {
-                            ...calculationResult,
                             job_details: jobData,
                             tax_details: taxData,
                             citations: consolidatedCitations,  // Admin-only RAG citations
-                            salarySource  // Track if salary came from RAG documents or hardcoded tables
+                            salarySource,  // Track if salary came from RAG documents or hardcoded tables
+                            ...(allowancesData && { allowances: allowancesData }),
+                            ...(oneTimeBonusesData && { oneTimeBonuses: oneTimeBonusesData })
                         },
                         ...(sessionId && { session_id: sessionId })
                     };
@@ -531,13 +599,17 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                     nextFormState.section = 'completed';
                     nextFormState.data.calculation_result = {
                         brutto: monthlyBrutto,
-                        netto: monthlyNetto,
-                        taxes: calculationResult.taxes.lohnsteuer + calculationResult.taxes.soli + calculationResult.taxes.kirchensteuer,
-                        socialContributions: calculationResult.socialSecurity.kv + calculationResult.socialSecurity.rv + calculationResult.socialSecurity.av + calculationResult.socialSecurity.pv,
-                        year: new Date().getFullYear()
+                        netto: finalNetto,
+                        taxes: 0,  // Will be populated below
+                        socialContributions: 0,
+                        year: new Date().getFullYear(),
+                        ...(allowancesData && { allowances: allowancesData }),
+                        ...(oneTimeBonusesData && { oneTimeBonuses: oneTimeBonusesData }),
+                        ...(bonusConfig && { nettoWithAllowances: finalNetto })
                     };
                     nextFormState.missingFields = [];
 
+                    await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, formattedResult);
                     return buildChatResponse(formattedResult + '\n\n[PROGRESS: 100]', nextFormState, {
                         inquiryId: saveResult.data?.id || null,
                         suggestions: await generateSuggestions(nextFormState, formattedResult)
@@ -556,6 +628,7 @@ Fortschritt: [PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
                         model: 'gemini-2.5-flash',
                         contents: errorPrompt
                     });
+                    await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, responseResult.text || '');
                     return buildChatResponse(responseResult.text || '', nextFormState, {
                         suggestions: await generateSuggestions(nextFormState, responseResult.text || '')
                     });
@@ -622,9 +695,10 @@ ${summary}
 
 Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder nenne mir was du ändern möchtest.
 
-[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
+[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState, bonusConfig)}]
                             `;
 
+                            await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, summaryResponse);
                             return buildChatResponse(summaryResponse, nextFormState, {
                                 suggestions: await generateSuggestions(nextFormState, summaryResponse)
                             });
@@ -664,8 +738,9 @@ Halte dich kurz (1-2 Sätze).
                                 });
 
                                 const escalationText = (escalationResponse.text || '') +
-                                    `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
+                                    `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState, bonusConfig)}]`;
 
+                                await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, escalationText);
                                 return buildChatResponse(escalationText, nextFormState, {
                                     suggestions: escalationChips
                                 });
@@ -689,7 +764,8 @@ Halte dich kurz (1-2 Sätze).
                     model: 'gemini-2.5-flash',
                     contents: clarifyPrompt
                 });
-                const clarifyText = (responseResult.text || '') + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
+                const clarifyText = (responseResult.text || '') + `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState, bonusConfig)}]`;
+                await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, clarifyText);
                 return buildChatResponse(clarifyText, nextFormState, {
                     suggestions: await generateSuggestions(nextFormState, clarifyText)
                 });
@@ -754,7 +830,14 @@ Halte dich kurz (1-2 Sätze).
                         // - Retry counts reset when user returns after being away (TTL expired)
                         const validationSessionId = activeProjectId;
 
-                        for (const [field, value] of Object.entries(extraction.extracted)) {
+                        // Sort fields so dependencies are processed first
+                        // (e.g., 'tarif' must be validated before 'group' since group validation
+                        // depends on tarif to determine P vs E prefix)
+                        const fieldPriority: Record<string, number> = { tarif: 0, group: 1 };
+                        const sortedEntries = Object.entries(extraction.extracted)
+                            .sort(([a], [b]) => (fieldPriority[a] ?? 50) - (fieldPriority[b] ?? 50));
+
+                        for (const [field, value] of sortedEntries) {
                             // TWO-PHASE VALIDATION: LLM extracted -> Zod validates
                             const validationResult: FieldValidationResult = fieldValidator.validate(
                                 field,
@@ -809,8 +892,9 @@ Halte dich kurz (1-2 Sätze).
                                     });
 
                                     const escalationText = (escalationResponse.text || '') +
-                                        `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
+                                        `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState, bonusConfig)}]`;
 
+                                    await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, escalationText);
                                     return buildChatResponse(escalationText, nextFormState, {
                                         suggestions: escalationChips
                                     });
@@ -860,8 +944,9 @@ WICHTIG:
                 });
 
                 const rePromptText = (rePromptResult.text || '') +
-                    `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]`;
+                    `\n\n[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState, bonusConfig)}]`;
 
+                await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, rePromptText);
                 return buildChatResponse(rePromptText, nextFormState, {
                     suggestions: await generateSuggestions(nextFormState, rePromptText)
                 });
@@ -869,7 +954,7 @@ WICHTIG:
 
             // --- STATE MACHINE LOGIC (Transition & Guardrails) ---
             const previousSection = nextFormState.section;
-            const stepResult = SalaryStateMachine.getNextStep(nextFormState);
+            const stepResult = SalaryStateMachine.getNextStep(nextFormState, bonusConfig);
             nextFormState = stepResult.nextState;
 
             // --- DRAFT PERSISTENCE: Save on section transitions ---
@@ -888,16 +973,17 @@ ${summary}
 
 Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder nenne mir was du ändern möchtest.
 
-[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState)}]
+[PROGRESS: ${SalaryStateMachine.getProgress(nextFormState, bonusConfig)}]
                 `;
 
+                await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, summaryResponse);
                 return buildChatResponse(summaryResponse, nextFormState, {
                     suggestions: await generateSuggestions(nextFormState, summaryResponse)
                 });
             }
 
             // --- US-009 & US-010: RESPONSE GENERATION WITH USER-FRIENDLY LANGUAGE ---
-            const progress = SalaryStateMachine.getProgress(nextFormState);
+            const progress = SalaryStateMachine.getProgress(nextFormState, bonusConfig);
 
 
             // Build context-aware prompt for user-friendly questions
@@ -919,6 +1005,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
                 responseText += `\n\n[PROGRESS: ${progress}]`;
             }
 
+            await saveSession(getSupabaseAdmin(), sessionId, nextFormState, message, responseText);
             return buildChatResponse(responseText, nextFormState, {
                 suggestions: await generateSuggestions(nextFormState, responseText)
             });
@@ -929,7 +1016,7 @@ Stimmt das so? Sag "Ja" oder "Berechnen" um das Netto-Gehalt zu berechnen, oder 
         
         const responseText = await agent.sendMessage(
             message,
-            validatedHistory,
+            [], // No history needed - legacy path
             fileContextMessages
         );
 
@@ -1141,12 +1228,37 @@ function buildUserFriendlyPrompt(
     const nextFieldToAsk = missingFields[0];
     const friendlyQuestion = nextFieldToAsk ? fieldQuestions[nextFieldToAsk] : '';
 
+    // Build summary of already collected data for context
+    const collectedDataLines: string[] = [];
+    const jobData = formState.data.job_details || {};
+    const taxData = formState.data.tax_details || {};
+    if (jobData.tarif) collectedDataLines.push(`Tarifvertrag: ${jobData.tarif}`);
+    if (jobData.group) collectedDataLines.push(`Entgeltgruppe: ${jobData.group}`);
+    if (jobData.experience) collectedDataLines.push(`Erfahrung: ${jobData.experience}`);
+    if (jobData.hours) collectedDataLines.push(`Stunden: ${jobData.hours}`);
+    if (jobData.state) collectedDataLines.push(`Bundesland: ${jobData.state}`);
+    if (taxData.taxClass) collectedDataLines.push(`Steuerklasse: ${taxData.taxClass}`);
+    if (taxData.churchTax !== undefined) collectedDataLines.push(`Kirchensteuer: ${taxData.churchTax}`);
+    if (taxData.numberOfChildren !== undefined) collectedDataLines.push(`Kinder: ${taxData.numberOfChildren}`);
+    const collectedSummary = collectedDataLines.length > 0
+        ? `Bereits gesammelte Daten:\n${collectedDataLines.map(l => `- ${l}`).join('\n')}`
+        : 'Noch keine Daten gesammelt.';
+
+    // Include recent conversation context if available
+    const recentContext = formState.conversationContext?.slice(-4).join('\n- ') || '';
+    const conversationSection = recentContext
+        ? `\nLetzte Nachrichten des Nutzers:\n- ${recentContext}`
+        : '';
+
     return `
 Du bist ein freundlicher Gehalts-Chatbot für Pflegekräfte.
 Sprich den Nutzer locker und direkt an. Verwende "du".
 
 Aktueller Status: ${section === 'job_details' ? 'Berufliche Daten sammeln' : 'Steuerliche Daten sammeln'}
 Fortschritt: ${progress}%
+
+${collectedSummary}
+${conversationSection}
 
 Nutzer-Nachricht: "${userMessage}"
 

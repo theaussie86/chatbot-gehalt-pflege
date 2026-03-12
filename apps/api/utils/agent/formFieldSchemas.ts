@@ -369,6 +369,210 @@ export const numberOfChildrenSchema = z.preprocess(
     .describe('Anzahl der Kinder (0-10)')
 );
 
+// ============================================================================
+// DRK-specific field schemas (for employer-specific bonus calculations)
+// ============================================================================
+
+/**
+ * Employee type schema (Pflegefachkraft vs. Pflegeassistenz)
+ * Used to determine bonus amounts (250€ vs. 125€)
+ */
+export const employeeTypeSchema = z.preprocess(
+  (val) => {
+    const str = String(val).toLowerCase().trim();
+    // Fachkraft variations
+    if (
+      str.includes('fachkraft') ||
+      str.includes('examiniert') ||
+      str.includes('pflegefach') ||
+      str.includes('exam')
+    ) {
+      return 'fachkraft';
+    }
+    // Assistenz variations
+    if (
+      str.includes('assistent') ||
+      str.includes('assistenz') ||
+      str.includes('helfer') ||
+      str.includes('hilfskraft')
+    ) {
+      return 'assistenz';
+    }
+    return val;
+  },
+  z
+    .enum(['fachkraft', 'assistenz'], {
+      errorMap: (issue, ctx) => {
+        if (issue.code === z.ZodIssueCode.invalid_enum_value) {
+          return {
+            message:
+              'Bitte wähle "Pflegefachkraft" (examiniert) oder "Pflegeassistenz" (Helfer/Hilfskraft).',
+          };
+        }
+        return { message: ctx.defaultError };
+      },
+    })
+    .describe('Berufsgruppe: Pflegefachkraft (examiniert) oder Pflegeassistenz')
+);
+
+/**
+ * Night shifts per month schema
+ * Typical range: 0-20 (nobody works more than 20 night shifts per month)
+ */
+export const nightShiftsSchema = z.preprocess(
+  (val) => {
+    const str = String(val).toLowerCase().trim();
+    // Check German number words
+    if (str in GERMAN_NUMBER_WORDS) {
+      return GERMAN_NUMBER_WORDS[str];
+    }
+    // Parse numeric value
+    const num = parseInt(str, 10);
+    if (!isNaN(num)) {
+      return num;
+    }
+    return val;
+  },
+  z
+    .number()
+    .int()
+    .min(0, { message: 'Die Anzahl der Nachtdienste kann nicht negativ sein.' })
+    .max(20, {
+      message: 'Mehr als 20 Nachtdienste pro Monat? Das klingt ungewöhnlich. Bitte prüfe deine Angabe.',
+    })
+    .describe('Anzahl der Nachtdienste pro Monat (0-20)')
+);
+
+/**
+ * Late shifts per month schema
+ * Typical range: 0-25 (maximum shifts in a month)
+ */
+export const lateShiftsSchema = z.preprocess(
+  (val) => {
+    const str = String(val).toLowerCase().trim();
+    if (str in GERMAN_NUMBER_WORDS) {
+      return GERMAN_NUMBER_WORDS[str];
+    }
+    const num = parseInt(str, 10);
+    if (!isNaN(num)) {
+      return num;
+    }
+    return val;
+  },
+  z
+    .number()
+    .int()
+    .min(0, { message: 'Die Anzahl der Spätdienste kann nicht negativ sein.' })
+    .max(25, {
+      message: 'Mehr als 25 Spätdienste pro Monat? Das klingt ungewöhnlich. Bitte prüfe deine Angabe.',
+    })
+    .describe('Anzahl der Spätdienste pro Monat (0-25)')
+);
+
+/**
+ * Weekend days worked per month schema
+ * Typical range: 0-10 (max 4-5 weekends * 2 days)
+ */
+export const weekendDaysSchema = z.preprocess(
+  (val) => {
+    const str = String(val).toLowerCase().trim();
+    if (str in GERMAN_NUMBER_WORDS) {
+      return GERMAN_NUMBER_WORDS[str];
+    }
+    const num = parseInt(str, 10);
+    if (!isNaN(num)) {
+      return num;
+    }
+    return val;
+  },
+  z
+    .number()
+    .int()
+    .min(0, { message: 'Die Anzahl der Wochenend-Tage kann nicht negativ sein.' })
+    .max(10, {
+      message: 'Mehr als 10 Wochenend-Tage pro Monat? Das klingt ungewöhnlich.',
+    })
+    .describe('Anzahl der Wochenend-Tage pro Monat (0-10)')
+);
+
+/**
+ * Jump-in frequency per month schema
+ * Typical range: 0-10 (average jump-ins)
+ */
+export const jumpInFrequencySchema = z.preprocess(
+  (val) => {
+    const str = String(val).toLowerCase().trim();
+    if (str in GERMAN_NUMBER_WORDS) {
+      return GERMAN_NUMBER_WORDS[str];
+    }
+    const num = parseInt(str, 10);
+    if (!isNaN(num)) {
+      return num;
+    }
+    return val;
+  },
+  z
+    .number()
+    .int()
+    .min(0, { message: 'Die Einspringfrequenz kann nicht negativ sein.' })
+    .max(10, {
+      message: 'Mehr als 10× Einspringen pro Monat? Das klingt ungewöhnlich.',
+    })
+    .describe('Durchschnittliches Einspringen pro Monat (0-10)')
+);
+
+/**
+ * Qualifications schema (multi-select)
+ * Returns array of qualification keys
+ */
+const QUALIFICATION_MAP: Record<string, string> = {
+  wundmanager: 'wundmanager',
+  wundexperte: 'wundmanager',
+  wund: 'wundmanager',
+  palliativ: 'palliativbegleiter',
+  palliativbegleiter: 'palliativbegleiter',
+  hospiz: 'palliativbegleiter',
+  zercur: 'zercur_geriatrie',
+  geriatrie: 'zercur_geriatrie',
+  gerontologie: 'zercur_geriatrie',
+  praxisanleiter: 'praxisanleiter',
+  praxisanleitung: 'praxisanleiter',
+  mentor: 'praxisanleiter',
+  demenz: 'demenz',
+  gerontopsych: 'gerontopsych',
+};
+
+export const qualificationsSchema = z.preprocess(
+  (val) => {
+    // Handle array input
+    if (Array.isArray(val)) {
+      return val
+        .map((v) => {
+          const str = String(v).toLowerCase().trim();
+          return QUALIFICATION_MAP[str] || str;
+        })
+        .filter((v) => Object.values(QUALIFICATION_MAP).includes(v));
+    }
+    // Handle string input (comma-separated or single)
+    const str = String(val).toLowerCase().trim();
+    if (str === 'keine' || str === 'nein' || str === 'null') {
+      return [];
+    }
+    const parts = str.split(/[,;]+/).map((s) => s.trim());
+    return parts
+      .map((part) => {
+        for (const [key, value] of Object.entries(QUALIFICATION_MAP)) {
+          if (part.includes(key)) {
+            return value;
+          }
+        }
+        return null;
+      })
+      .filter((v): v is string => v !== null);
+  },
+  z.array(z.string()).describe('Zusatzqualifikationen (Wundmanager, Praxisanleiter, etc.)')
+);
+
 /**
  * Simple Levenshtein distance for near-miss suggestions
  */

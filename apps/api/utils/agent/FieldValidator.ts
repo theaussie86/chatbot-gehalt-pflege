@@ -10,6 +10,13 @@ import {
   taxClassSchema,
   churchTaxSchema,
   numberOfChildrenSchema,
+  // DRK-specific schemas
+  employeeTypeSchema,
+  nightShiftsSchema,
+  lateShiftsSchema,
+  weekendDaysSchema,
+  jumpInFrequencySchema,
+  qualificationsSchema,
 } from './formFieldSchemas';
 
 /**
@@ -270,6 +277,13 @@ export class FieldValidator {
       taxClass: ['1 (ledig)', '2 (alleinerziehend)', '3 (verheiratet)', '4 (verheiratet)', '5', '6'],
       churchTax: ['Ja', 'Nein'],
       numberOfChildren: ['0', '1', '2', '3', 'keine'],
+      // DRK-specific fields
+      employeeType: ['Pflegefachkraft', 'Pflegeassistenz'],
+      nightShifts: ['0', '3', '5', '7', '10'],
+      lateShifts: ['0', '5', '7', '10', '15'],
+      weekendDays: ['0', '2', '4', '6', '8'],
+      jumpInFrequency: ['0', '1', '2', '3', '5'],
+      qualifications: ['Wundmanager', 'Praxisanleiter', 'Palliativbegleiter', 'Keine'],
     };
 
     return optionsMap[field] || [];
@@ -314,6 +328,12 @@ export class FieldValidator {
       | typeof taxClassSchema
       | typeof churchTaxSchema
       | typeof numberOfChildrenSchema
+      | typeof employeeTypeSchema
+      | typeof nightShiftsSchema
+      | typeof lateShiftsSchema
+      | typeof weekendDaysSchema
+      | typeof jumpInFrequencySchema
+      | typeof qualificationsSchema
     > = {
       tarif: tarifSchema,
       group: groupSchema,
@@ -323,6 +343,13 @@ export class FieldValidator {
       taxClass: taxClassSchema,
       churchTax: churchTaxSchema,
       numberOfChildren: numberOfChildrenSchema,
+      // DRK-specific schemas
+      employeeType: employeeTypeSchema,
+      nightShifts: nightShiftsSchema,
+      lateShifts: lateShiftsSchema,
+      weekendDays: weekendDaysSchema,
+      jumpInFrequency: jumpInFrequencySchema,
+      qualifications: qualificationsSchema,
     };
 
     return (schemaMap[field] || tarifSchema) as typeof tarifSchema; // Fallback to tarif schema
@@ -352,6 +379,13 @@ export class FieldValidator {
       taxClass: 'Steuerklasse',
       churchTax: 'Kirchensteuer',
       numberOfChildren: 'Kinderanzahl',
+      // DRK-specific fields
+      employeeType: 'Berufsgruppe',
+      nightShifts: 'Nachtdienste pro Monat',
+      lateShifts: 'Spätdienste pro Monat',
+      weekendDays: 'Wochenend-Tage pro Monat',
+      jumpInFrequency: 'Einspringen pro Monat',
+      qualifications: 'Zusatzqualifikationen',
     };
 
     const label = fieldLabels[field] || field;

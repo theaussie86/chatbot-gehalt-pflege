@@ -33,7 +33,7 @@ export class ConversationStore {
       const parsed = JSON.parse(serialized);
 
       // Validate required fields
-      if (!parsed.messages || !parsed.formState || typeof parsed.progress !== 'number') {
+      if (!parsed.messages || typeof parsed.progress !== 'number') {
         console.warn('Invalid stored conversation format');
         return null;
       }
@@ -49,7 +49,7 @@ export class ConversationStore {
 
       return {
         messages,
-        formState: parsed.formState,
+        section: parsed.section || parsed.formState?.section || 'job_details',
         progress: parsed.progress,
         updatedAt: parsed.updatedAt,
         sessionId

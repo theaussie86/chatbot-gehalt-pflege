@@ -55,19 +55,7 @@ export class ConversationAnalyzer {
   ): IntentAnalysis | null {
     const lowercaseMsg = message.toLowerCase().trim();
 
-    // Question patterns
-    if (
-      lowercaseMsg.includes('?') ||
-      lowercaseMsg.match(/\b(was ist|wie|warum|wann|wo|welche|erkläre|erklär)\b/)
-    ) {
-      return {
-        intent: 'question',
-        confidence: 0.9,
-        reasoning: 'Detected question markers'
-      };
-    }
-
-    // Confirmation patterns (only in summary phase)
+    // Confirmation patterns (only in summary phase) - check first
     if (currentState.section === 'summary' && currentState.missingFields.length === 0) {
       if (
         lowercaseMsg.match(/\b(ja|yes|okay|ok|klar|los|go|genau|stimmt|richtig|korrekt|berechne|rechne|weiter)\b/) &&
@@ -95,10 +83,42 @@ export class ConversationAnalyzer {
       }
     }
 
+    // During data collection phases: prioritize data_provision over question detection
+    // This prevents losing user data when they phrase answers as questions
+    // (e.g. "Ich bin Pflegefachkraft, was verdiene ich?")
+    if (currentState.missingFields.length > 0 &&
+        (currentState.section === 'job_details' || currentState.section === 'tax_details')) {
+      // Check if message likely contains data (not a pure question)
+      const containsData = lowercaseMsg.match(
+        /\b(pflegefachkraft|pflegehelfer|pflegeassisten|altenpfleger|krankenpfleger|krankenschwester|stationsleitung|praxisanleiter|wohnbereichsleitung|pdl|fachkraft|assistenz|tvöd|tvoed|tv-l|tvl|avr|öffentlich|vollzeit|teilzeit|stunde|nrw|bayern|berlin|hamburg|hessen|sachsen|niedersachsen|schleswig|nordrhein|rheinland|baden|württemberg|brandenburg|thüringen|mecklenburg|saarland|bremen|steuerklasse|ledig|verheiratet|geschieden|kirchensteuer|kind|kinder|stufe|jahre|erfahrung|\d+\s*(h|stunden|std|jahre|j))\b/
+      );
+
+      if (containsData) {
+        return {
+          intent: 'data_provision',
+          confidence: 0.85,
+          reasoning: 'Message contains data keywords during data collection phase'
+        };
+      }
+    }
+
+    // Question patterns - only classify as question if no data was detected above
+    if (
+      lowercaseMsg.includes('?') ||
+      lowercaseMsg.match(/\b(was ist|wie|warum|wann|wo|welche|erkläre|erklär)\b/)
+    ) {
+      // Short pure questions (no substantive data)
+      return {
+        intent: 'question',
+        confidence: 0.9,
+        reasoning: 'Detected question markers'
+      };
+    }
+
     // Data provision pattern - if none of the above and we have missing fields
     if (currentState.missingFields.length > 0 && lowercaseMsg.length > 2) {
       // Simple heuristic: if message is not a question and not too long, likely data
-      if (!lowercaseMsg.includes('?') && lowercaseMsg.length < 100) {
+      if (lowercaseMsg.length < 100) {
         return {
           intent: 'data_provision',
           confidence: 0.75,

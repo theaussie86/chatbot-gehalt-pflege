@@ -1,4 +1,5 @@
-import { FormState } from "../types/form";
+import { FormState, CalculationResult } from "../types/form";
+import { BonusConfig } from "../types/bonus-config";
 
 export type StepResult = {
   nextState: FormState;
@@ -10,8 +11,8 @@ export type SectionType = 'job_details' | 'tax_details' | 'summary' | 'completed
 
 export class SalaryStateMachine {
 
-  // Define required fields for each state to act as Guardrails
-  private static REQUIREMENTS: Record<string, string[]> = {
+  // Base required fields for each state (without employer-specific fields)
+  private static BASE_REQUIREMENTS: Record<string, string[]> = {
     job_details: ['tarif', 'group', 'experience', 'hours', 'state'],
     tax_details: ['taxClass', 'churchTax', 'numberOfChildren'],
     summary: [],
@@ -30,22 +31,56 @@ export class SalaryStateMachine {
     numberOfChildren: 'Anzahl Kinder',
     hasChildren: 'Kinder',
     childCount: 'Kinderanzahl',
-    birthYear: 'Geburtsjahr'
+    birthYear: 'Geburtsjahr',
+    // DRK-specific fields
+    employeeType: 'Berufsgruppe',
+    nightShifts: 'Nachtdienste pro Monat',
+    lateShifts: 'Spätdienste pro Monat',
+    weekendDays: 'Wochenend-Tage pro Monat',
+    jumpInFrequency: 'Einspringen pro Monat',
+    qualifications: 'Zusatzqualifikationen',
   };
+
+  /**
+   * Get requirements for a section, optionally extended by BonusConfig features
+   * @param section The section to get requirements for
+   * @param config Optional BonusConfig to add employer-specific fields
+   * @returns Array of required field names
+   */
+  static getRequirements(section: string, config?: BonusConfig | null): string[] {
+    const base = [...(this.BASE_REQUIREMENTS[section] || [])];
+
+    if (section === 'job_details' && config?.features) {
+      // employeeType for premium differentiation (Fachkraft vs Assistenz)
+      if (config.bonuses?.performance) {
+        base.push('employeeType');
+      }
+      // Shift data collection
+      if (config.features.collectShiftData) {
+        base.push('nightShifts', 'lateShifts', 'weekendDays', 'jumpInFrequency');
+      }
+      // Qualifications collection
+      if (config.features.collectQualifications) {
+        base.push('qualifications');
+      }
+    }
+    return base;
+  }
 
   /**
    * Check if all required fields for the current phase are complete
    * @param currentState The current form state
+   * @param config Optional BonusConfig for employer-specific requirements
    * @returns True if the current phase is complete
    */
-  static isPhaseComplete(currentState: FormState): boolean {
+  static isPhaseComplete(currentState: FormState, config?: BonusConfig | null): boolean {
     const section = currentState.section;
     if (section === 'summary' || section === 'completed') {
       return true;
     }
 
     const sectionData = currentState.data[section as 'job_details' | 'tax_details'] || {};
-    const required = this.REQUIREMENTS[section] || [];
+    const required = this.getRequirements(section, config);
     const missing = this.getMissingFields(sectionData, required);
 
     return missing.length === 0;
@@ -54,18 +89,19 @@ export class SalaryStateMachine {
   /**
    * Check if all data collection is complete (all phases)
    * @param currentState The current form state
+   * @param config Optional BonusConfig for employer-specific requirements
    * @returns True if all required data has been collected
    */
-  static isComplete(currentState: FormState): boolean {
+  static isComplete(currentState: FormState, config?: BonusConfig | null): boolean {
     // Check job_details
-    const jobRequired = this.REQUIREMENTS.job_details;
+    const jobRequired = this.getRequirements('job_details', config);
     const jobData = currentState.data.job_details || {};
     const jobMissing = this.getMissingFields(jobData, jobRequired);
 
     if (jobMissing.length > 0) return false;
 
     // Check tax_details
-    const taxRequired = this.REQUIREMENTS.tax_details;
+    const taxRequired = this.getRequirements('tax_details', config);
     const taxData = currentState.data.tax_details || {};
     const taxMissing = this.getMissingFields(taxData, taxRequired);
 
@@ -78,9 +114,10 @@ export class SalaryStateMachine {
    * Check if a transition to the target state is valid
    * @param currentState The current form state
    * @param nextSection The desired next section
+   * @param config Optional BonusConfig for employer-specific requirements
    * @returns True if the transition is valid
    */
-  static canTransition(currentState: FormState, nextSection: SectionType): boolean {
+  static canTransition(currentState: FormState, nextSection: SectionType, config?: BonusConfig | null): boolean {
     const validTransitions: Record<string, SectionType[]> = {
       job_details: ['tax_details'],
       tax_details: ['summary', 'job_details'], // Can go back to job_details for modifications
@@ -97,15 +134,15 @@ export class SalaryStateMachine {
 
     // For forward transitions, check if current phase is complete
     if (nextSection === 'tax_details' && currentState.section === 'job_details') {
-      return this.isPhaseComplete(currentState);
+      return this.isPhaseComplete(currentState, config);
     }
 
     if (nextSection === 'summary' && currentState.section === 'tax_details') {
-      return this.isPhaseComplete(currentState);
+      return this.isPhaseComplete(currentState, config);
     }
 
     if (nextSection === 'completed' && currentState.section === 'summary') {
-      return this.isComplete(currentState);
+      return this.isComplete(currentState, config);
     }
 
     return true;
@@ -114,13 +151,13 @@ export class SalaryStateMachine {
   /**
    * Get progress percentage (0-100) based on collected fields
    * @param currentState The current form state
+   * @param config Optional BonusConfig for employer-specific requirements
    * @returns Progress percentage
    */
-  static getProgress(currentState: FormState): number {
-    const allRequired = [
-      ...this.REQUIREMENTS.job_details,
-      ...this.REQUIREMENTS.tax_details
-    ];
+  static getProgress(currentState: FormState, config?: BonusConfig | null): number {
+    const jobReq = this.getRequirements('job_details', config);
+    const taxReq = this.getRequirements('tax_details', config);
+    const allRequired = [...jobReq, ...taxReq];
     const totalRequired = allRequired.length;
 
     if (totalRequired === 0) return 100;
@@ -128,8 +165,8 @@ export class SalaryStateMachine {
     const jobData = currentState.data.job_details || {};
     const taxData = currentState.data.tax_details || {};
 
-    const jobMissing = this.getMissingFields(jobData, this.REQUIREMENTS.job_details);
-    const taxMissing = this.getMissingFields(taxData, this.REQUIREMENTS.tax_details);
+    const jobMissing = this.getMissingFields(jobData, jobReq);
+    const taxMissing = this.getMissingFields(taxData, taxReq);
 
     const totalMissing = jobMissing.length + taxMissing.length;
     const collected = totalRequired - totalMissing;
@@ -199,18 +236,23 @@ export class SalaryStateMachine {
   /**
    * Evaluates the current state and data to determine the next step.
    * This is the functional "next()" transition logic.
+   * @param currentState The current form state
+   * @param config Optional BonusConfig for employer-specific requirements
    */
-  static getNextStep(currentState: FormState): StepResult {
+  static getNextStep(currentState: FormState, config?: BonusConfig | null): StepResult {
     // Clone to avoid mutation side-effects on input
     const nextState: FormState = JSON.parse(JSON.stringify(currentState));
-    
+
+    const jobRequirements = this.getRequirements('job_details', config);
+    const taxRequirements = this.getRequirements('tax_details', config);
+
     // --- STATE: JOB DETAILS ---
     if (nextState.section === 'job_details') {
       const remaining = this.getMissingFields(
-        nextState.data.job_details || {}, 
-        this.REQUIREMENTS.job_details
+        nextState.data.job_details || {},
+        jobRequirements
       );
-      
+
       nextState.missingFields = remaining;
 
       if (remaining.length === 0) {
@@ -219,9 +261,9 @@ export class SalaryStateMachine {
         // Check next requirements immediately
         nextState.missingFields = this.getMissingFields(
           nextState.data.tax_details || {},
-          this.REQUIREMENTS.tax_details
+          taxRequirements
         );
-        
+
         return {
           nextState,
           shouldExtend: true, // We need to now ask for tax details
@@ -241,16 +283,16 @@ export class SalaryStateMachine {
     if (nextState.section === 'tax_details') {
       const remaining = this.getMissingFields(
         nextState.data.tax_details || {},
-        this.REQUIREMENTS.tax_details
+        taxRequirements
       );
-      
+
       nextState.missingFields = remaining;
 
       if (remaining.length === 0) {
         // Transition: TAX_DETAILS -> SUMMARY
         nextState.section = 'summary';
         nextState.missingFields = [];
-        
+
         return {
           nextState,
           shouldExtend: true, // Ask for confirmation
@@ -301,5 +343,87 @@ export class SalaryStateMachine {
         const val = currentData[key];
         return val === undefined || val === null || val === '';
     });
+  }
+
+  /**
+   * Format calculation result for display to user
+   * @param result The calculation result from FormState
+   * @param config Optional BonusConfig for employer-specific formatting
+   * @returns Formatted result string in German
+   */
+  static formatResult(result: CalculationResult, config?: BonusConfig | null): string {
+    const lines: string[] = [];
+
+    // Header with employer name if available
+    const employerName = config?.employer?.name;
+    lines.push(`## 💰 Deine Gehaltsberechnung${employerName ? ` beim ${employerName}` : ''}\n`);
+
+    // Base salary
+    if (result.brutto) {
+      lines.push(`**Grundgehalt:** ${result.brutto.toFixed(0)} € brutto\n`);
+    }
+
+    // Allowances breakdown (if present)
+    if (result.allowances && result.allowances.breakdown && result.allowances.breakdown.length > 0) {
+      lines.push('### Monatliche Zulagen & Prämien:\n');
+      for (const item of result.allowances.breakdown) {
+        lines.push(`- ${item}`);
+      }
+      lines.push(`- **Gesamt Zulagen:** +${result.allowances.total.toFixed(0)} €\n`);
+    }
+
+    // Net calculation breakdown
+    lines.push('### Netto-Berechnung:\n');
+
+    // Show adjusted brutto if there are taxable allowances
+    const taxableAllowances = result.allowances?.taxable;
+    const taxableTotal = taxableAllowances
+      ? (taxableAllowances.shiftChange || 0) +
+        (taxableAllowances.qualifications || 0) +
+        (taxableAllowances.performance || 0) +
+        (taxableAllowances.jumpIn || 0)
+      : 0;
+
+    if (taxableTotal > 0 && result.brutto) {
+      lines.push(`- Brutto inkl. steuerp. Zulagen: ${(result.brutto + taxableTotal).toFixed(0)} €`);
+    }
+
+    if (result.taxes !== undefined) {
+      lines.push(`- Lohnsteuer: -${result.taxes.toFixed(0)} €`);
+    }
+    if (result.socialContributions !== undefined) {
+      lines.push(`- Sozialabgaben: -${result.socialContributions.toFixed(0)} €`);
+    }
+    if (result.netto !== undefined) {
+      lines.push(`- **Netto:** ${result.netto.toFixed(0)} €`);
+    }
+
+    // Tax-free allowances added to netto
+    if (result.allowances?.taxFree) {
+      const taxFreeTotal = (result.allowances.taxFree.night || 0) +
+                           (result.allowances.taxFree.sunday || 0) +
+                           (result.allowances.taxFree.holiday || 0);
+      if (taxFreeTotal > 0) {
+        lines.push(`- + Steuerfreie Zuschläge: +${taxFreeTotal.toFixed(0)} €`);
+      }
+    }
+
+    // Final payout amount
+    if (result.nettoWithAllowances !== undefined) {
+      lines.push(`- **Dein Auszahlungsbetrag: ca. ${result.nettoWithAllowances.toFixed(0)} €**\n`);
+    }
+
+    // One-time bonuses (for new employees)
+    if (result.oneTimeBonuses && config?.features?.showOneTimeBonuses) {
+      lines.push('### Zusätzlich als Neueinsteiger:\n');
+      if (result.oneTimeBonuses.switchBonus) {
+        lines.push(`🎁 **Wechselprämie:** ${result.oneTimeBonuses.switchBonus.total} € (${result.oneTimeBonuses.switchBonus.schedule})`);
+      }
+      if (result.oneTimeBonuses.welcomeBonus) {
+        lines.push(`🎁 **Willkommensbonus:** ${result.oneTimeBonuses.welcomeBonus.total} € (${result.oneTimeBonuses.welcomeBonus.schedule})`);
+      }
+    }
+
+    return lines.join('\n');
   }
 }

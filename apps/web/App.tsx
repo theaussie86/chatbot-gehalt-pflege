@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, MessageSquare } from 'lucide-react';
-import { Message, Sender, SalaryResultData, FormState, DEFAULT_FORM_STATE } from './types';
+import { Message, Sender, SalaryResultData, SectionType } from './types';
 import { sendMessageToGemini, initializeChat, sendEmailExport } from './services/gemini';
 import { MessageBubble } from './components/MessageBubble';
 import { StepBar } from './components/StepBar';
@@ -33,7 +33,7 @@ export default function App({ config }: AppProps) {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [formState, setFormState] = useState<FormState>(DEFAULT_FORM_STATE);
+  const [section, setSection] = useState<SectionType>('job_details');
   const [sessionId, setSessionId] = useState<string>(() => ConversationStore.generateSessionId());
   const [inquiryId, setInquiryId] = useState<string | null>(null);
   const [doiLoading, setDoiLoading] = useState(false);
@@ -78,7 +78,7 @@ export default function App({ config }: AppProps) {
     const savedConversation = ConversationStore.load();
     if (savedConversation) {
       setMessages(savedConversation.messages);
-      setFormState(savedConversation.formState);
+      setSection(savedConversation.section);
       setProgress(savedConversation.progress);
       setSessionId(savedConversation.sessionId);
     }
@@ -146,11 +146,9 @@ export default function App({ config }: AppProps) {
     setMessages(updatedMessagesWithUser);
 
     try {
-      // Get AI response with current form state and session ID for draft persistence
-      const { text: rawText, formState: newFormState, inquiryId: newInquiryId, suggestions: newSuggestions, progress: serverProgress } = await sendMessageToGemini(
+      // Get AI response with session ID for server-side state management
+      const { text: rawText, section: newSection, inquiryId: newInquiryId, suggestions: newSuggestions, progress: serverProgress } = await sendMessageToGemini(
         textToSend,
-        messages,
-        formState,
         sessionId
       );
 
@@ -159,14 +157,14 @@ export default function App({ config }: AppProps) {
       // Prefer server-provided progress over client-parsed
       const effectiveProgress = serverProgress ?? newProgress;
       const finalProgress = effectiveProgress !== null && effectiveProgress !== undefined ? effectiveProgress : progress;
-      const finalFormState = newFormState || formState;
+      const finalSection = newSection || section;
 
       if (effectiveProgress !== null && effectiveProgress !== undefined) {
         setProgress(effectiveProgress);
       }
 
-      if (newFormState) {
-        setFormState(newFormState);
+      if (newSection) {
+        setSection(newSection);
       }
 
       if (newInquiryId) {
@@ -188,7 +186,7 @@ export default function App({ config }: AppProps) {
       setMessages(updatedMessages);
 
       // Save conversation to localStorage (unless completed)
-      if (finalFormState.section === 'completed') {
+      if (finalSection === 'completed') {
         // Add DOI consent form message after completion
         const doiMessage: Message = {
           id: (Date.now() + 2).toString(),
@@ -206,7 +204,7 @@ export default function App({ config }: AppProps) {
         // Save conversation for auto-resume
         ConversationStore.save({
           messages: updatedMessages,
-          formState: finalFormState,
+          section: finalSection,
           progress: finalProgress,
           updatedAt: new Date().toISOString(),
           sessionId
@@ -241,7 +239,7 @@ export default function App({ config }: AppProps) {
         options: INITIAL_OPTIONS
       }
     ]);
-    setFormState(DEFAULT_FORM_STATE);
+    setSection('job_details');
     setProgress(0);
     setInputValue('');
     setSessionId(ConversationStore.generateSessionId()); // New session for new conversation
@@ -258,11 +256,11 @@ export default function App({ config }: AppProps) {
     try {
       const projectId = config?.projectId || import.meta.env.VITE_PROJECT_ID || '';
 
-      // Prepare inquiry data from formState
+      // Prepare inquiry data (server owns the form state now)
       const inquiryData = {
-        jobDetails: formState.data.job_details || {},
-        taxDetails: formState.data.tax_details || {},
-        calculationResult: formState.data.calculation_result || {}
+        jobDetails: {},
+        taxDetails: {},
+        calculationResult: {}
       };
 
       const result = await sendEmailExport(email, inquiryData, projectId, inquiryId);
@@ -323,7 +321,7 @@ export default function App({ config }: AppProps) {
 
       {/* Step Progress Bar */}
       <div className="bg-white px-6 border-b border-slate-100">
-        <StepBar currentSection={formState.section} />
+        <StepBar currentSection={section} />
       </div>
 
       {/* Chat Area */}
